@@ -1,0 +1,155 @@
+# ============================================================
+# CED-III IT2 — Sentiment analysis on GoEmotions
+# Ignore everything that must not reach the repository but that
+# we DO use locally while working on the project.
+# ============================================================
+
+# --- Private team documents and AI tooling (never pushed) ----
+# MASTER_PROMPT.md, COMMITS.md, CLAUDE.md, statement PDF, rubric XLSX
+.claude/
+.claude-flow/
+.cursor/
+.cursorrules
+.aider*
+.continue/
+.windsurf/
+.copilot/
+.gemini/
+.codex/
+CLAUDE.local.md
+graphify-out/
+
+# --- IDEs and editors ----------------------------------------
+.vscode/
+.idea/
+.vs/
+.fleet/
+.history/
+.ionide/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.iml
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# --- Operating system files ----------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- Python ---------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+pip-log.txt
+
+# --- Virtual and conda environments (we use them, we do not push them)
+.venv/
+venv/
+env/
+ENV/
+.conda/
+.python-version
+.tox/
+.nox/
+
+# --- Jupyter -------------------------------------------------
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+.virtual_documents/
+
+# --- Tests, linters, type checkers, coverage -----------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Secrets and local configuration --------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+kaggle.json
+.kaggle/
+
+# --- Caches of libraries we use -------------------------------
+.cache/
+hf_cache/
+.huggingface/
+nltk_data/
+.keras/
+catboost_info/
+
+# --- Experiment trackers and training artifacts ---------------
+wandb/
+mlruns/
+runs/
+tensorboard/
+lightning_logs/
+checkpoints/
+logs/fit/
+logs/tensorboard/
+*.ckpt
+
+# --- Large model weights (do not push; small .keras / .joblib models are allowed)
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pb
+outputs/saved_models/transformer*/
+outputs/saved_models/distilbert*/
+outputs/saved_models/bert*/
+
+# --- Temporary and scratch files ------------------------------
+tmp/
+temp/
+scratch/
+*.tmp
+*.bak
+*.orig
+*.rej
+*.log
+
+# --- LaTeX build files (docs/report.pdf IS tracked) ------------
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.synctex.gz
+*.synctex(busy)
+*.run.xml
+*-blx.bib
