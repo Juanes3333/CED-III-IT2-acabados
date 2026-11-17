@@ -1,13 +1,13 @@
 """Data loading, sentiment mapping, text cleaning, tokenization and splitting.
 
-Implemented so far (IT2-05): load_goemotions, load_sentiment_mapping,
-assign_sentiment.
+Implemented so far: load_goemotions, load_sentiment_mapping,
+assign_sentiment (IT2-05), build_balanced_dataset (IT2-06).
 Planned public functions (later commits):
-    build_balanced_dataset, clean_text, tokenize, split_dataset,
-    build_vectorizer.
+    clean_text, tokenize, split_dataset, build_vectorizer.
 """
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +15,10 @@ import pandas as pd
 SEED: int = 1234
 ROOT: Path = Path(__file__).resolve().parents[1]
 RAW_DIR: Path = ROOT / "data" / "raw"
+PROCESSED_DIR: Path = ROOT / "data" / "processed"
+BALANCED_CSV: Path = PROCESSED_DIR / "goemotions_balanced.csv"
+
+logger = logging.getLogger(__name__)
 
 SPLIT_FILES: tuple[str, ...] = ("train.tsv", "dev.tsv", "test.tsv")
 NEUTRAL_GROUP: str = "neutral"
@@ -112,3 +116,97 @@ def assign_sentiment(df: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
 
     out["sentiment"] = out["emotions"].apply(group_of)
     return out
+
+
+def normalize_text(text: str) -> str:
+    """Normalize a comment only to compare duplicates (not for modeling).
+
+    Lowercases, strips the ends and collapses repeated whitespace.
+
+    Args:
+        text: Raw comment text.
+
+    Returns:
+        Normalized text.
+    """
+    return " ".join(text.lower().split())
+
+
+def build_balanced_dataset(
+    df: pd.DataFrame, n_per_class: int = 500, seed: int = SEED
+) -> pd.DataFrame:
+    """Build the balanced binary dataset (positive vs negative).
+
+    Steps: keep only pure ``positive`` and ``negative`` comments, remove
+    duplicated comments (normalized text), then sample ``n_per_class``
+    comments per class with ``seed``. If the same normalized text appears
+    with both labels, all its copies are dropped because its label cannot be
+    trusted. Otherwise the first copy (by ``comment_id``) is kept. The number
+    of removed duplicates and conflicts is logged.
+
+    Args:
+        df: Output of :func:`assign_sentiment`.
+        n_per_class: Number of comments to sample for each class.
+        seed: Random seed for sampling and shuffling.
+
+    Returns:
+        DataFrame with columns ``comment_id``, ``text``, ``sentiment`` and
+        ``label`` (1 = positive, 0 = negative), shuffled with ``seed``.
+
+    Raises:
+        ValueError: If a class has fewer than ``n_per_class`` comments.
+    """
+    pure = df[df["sentiment"].isin(["positive", "negative"])].copy()
+    pure = pure.sort_values("comment_id", kind="stable").reset_index(drop=True)
+    pure["_key"] = pure["text"].apply(normalize_text)
+
+    n_labels = pure.groupby("_key")["sentiment"].transform("nunique")
+    conflict = n_labels > 1
+    n_conflict_texts = pure.loc[conflict, "_key"].nunique()
+    pure = pure[~conflict]
+
+    n_before = len(pure)
+    pure = pure.drop_duplicates(subset="_key", keep="first")
+    logger.info("Pure positive/negative comments: %d", len(df[df["sentiment"].isin(["positive", "negative"])]))
+    logger.info(
+        "Texts with conflicting labels (all copies dropped): %d (%d rows)",
+        n_conflict_texts,
+        int(conflict.sum()),
+    )
+    logger.info("Duplicate rows removed: %d", n_before - len(pure))
+
+    parts = []
+    for sentiment in ("positive", "negative"):
+        group = pure[pure["sentiment"] == sentiment]
+        if len(group) < n_per_class:
+            raise ValueError(
+                f"Only {len(group)} {sentiment} comments, need {n_per_class}"
+            )
+        parts.append(group.sample(n=n_per_class, random_state=seed))
+
+    balanced = pd.concat(parts).sample(frac=1.0, random_state=seed)
+    balanced["label"] = (balanced["sentiment"] == "positive").astype(int)
+    return balanced[["comment_id", "text", "sentiment", "label"]].reset_index(drop=True)
+
+
+def save_balanced_dataset(balanced: pd.DataFrame, path: Path = BALANCED_CSV) -> Path:
+    """Write the balanced dataset as UTF-8 CSV with Unix line endings.
+
+    Args:
+        balanced: Output of :func:`build_balanced_dataset`.
+        path: Destination file.
+
+    Returns:
+        The path written.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    balanced.to_csv(path, index=False, encoding="utf-8", lineterminator="\n")
+    return path
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    full = assign_sentiment(load_goemotions(), load_sentiment_mapping())
+    out = save_balanced_dataset(build_balanced_dataset(full))
+    logger.info("Saved %s", out)

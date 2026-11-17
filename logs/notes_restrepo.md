@@ -44,3 +44,39 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 ### 5. Observations & Teammate Hand-off
 - Not done on purpose: deduplication and balanced sampling (IT2-06), cleaning and split (IT2-07).
 - `load_emotion_names` is an extra helper, not in the §7 contract.
+
+## IT2-06: Build balanced 500/500 sentiment dataset
+
+- **Date:** 2026-11-17
+- **Owner:** Restrepo
+- **Branch:** `feat/data-pipeline`
+- **Commit Reference:** Refs: IT2-06
+
+### 1. Technical Decision / Hypothesis
+- Keep only pure positive/negative comments, remove duplicates, sample 500 + 500 with `SEED = 1234`.
+- Duplicates are compared with normalized text (lowercase, trimmed, collapsed spaces). The first copy by `comment_id` is kept.
+- If one normalized text appears with both labels, all its copies are dropped, because the label cannot be trusted.
+
+### 2. Context & Rationale
+- `MASTER_PROMPT.md` §6.2 steps 5-6. Sorting by `comment_id` before deduplication and sampling makes the result independent of file order.
+
+### 3. Implementation Details
+- Files: `src/preprocessing.py`, `data/processed/goemotions_balanced.csv`, `logs/notes_restrepo.md`.
+- New functions: `build_balanced_dataset` (contract §7), plus helpers `normalize_text` and `save_balanced_dataset`. Running `python -m src.preprocessing` from the repo root writes the CSV.
+- CSV columns: `comment_id, text, sentiment, label` (1 = positive, 0 = negative), shuffled with the seed, LF line endings.
+
+### 4. Verification & Empirical Evidence
+- Command: `python -m src.preprocessing` (twice), then `md5sum` and a pandas check.
+- Pure positive/negative comments: 29,237 (19,020 + 10,217).
+- Conflicting labels: 1 text, 3 rows, all dropped.
+- Duplicate rows removed (after conflicts): 213.
+- Output: 1,000 rows, 500 positive / 500 negative, 0 duplicate normalized texts, `comment_id` unique.
+- Both runs gave the same MD5 `9912473c1d6d464bf5da54da746153aa`.
+- Acceptance criteria checklist:
+  - [x] 1,000 rows, 500/500
+  - [x] No duplicate text
+  - [x] Byte-identical CSV on two runs
+
+### 5. Observations & Teammate Hand-off
+- Not done on purpose: cleaning, tokenization and split (IT2-07).
+- Duplicates were checked only among pure positive/negative comments, not against neutral, ambiguous or mixed ones.

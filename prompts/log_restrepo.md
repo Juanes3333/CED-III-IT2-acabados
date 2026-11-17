@@ -23,3 +23,25 @@ Claude Code was used as a support tool during development to clarify questions a
 
 #### Discarded
 Nothing significant was discarded. The suggestions provided by the AI were reviewed and adapted to the actual dataset structure and project requirements.
+
+### [2026-11-17] IT2-06: Balanced 500/500 sentiment dataset
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "I'm working on building a balanced sentiment dataset. Help me review the deduplication criteria, the text normalization process and the sampling requirements to ensure the final dataset contains 500 positive and 500 negative comments."
+
+#### AI Contribution
+Claude Code was used as a support tool to clarify some aspects of the dataset preparation process, particularly text normalization, duplicate detection and balanced sampling. It provided suggestions for handling comments with conflicting sentiment labels and helped review the consistency of the CSV export process.
+
+#### Review & Critical Refinements
+- **Accepted:** Deduplication based on normalized text, following the project specification.
+- **Adjusted:** Comments appearing with both positive and negative labels are excluded completely to avoid retaining potentially conflicting sentiment classifications.
+- **Adjusted:** Rows are sorted by `comment_id` before sampling to ensure consistent results regardless of the original file order.
+- **Adjusted:** The CSV export uses LF line endings to maintain consistency across different operating systems.
+- **Validated:** The final dataset contains 500 positive and 500 negative comments, with the sampling process using the required seed.
+
+#### Discarded
+Nothing significant was discarded. The proposed approaches were reviewed and adapted according to the dataset requirements.
