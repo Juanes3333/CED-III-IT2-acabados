@@ -45,3 +45,26 @@ Claude Code was used as a support tool to clarify some aspects of the dataset pr
 
 #### Discarded
 Nothing significant was discarded. The proposed approaches were reviewed and adapted according to the dataset requirements.
+
+### [2026-11-17] IT2-07: Cleaning, tokenization and split
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "I'm working on the text preprocessing stage. Help me review the cleaning and tokenization criteria, especially how to preserve negations, and clarify the requirements for the stratified dataset split and vectorizer."
+
+#### AI Contribution
+Claude Code was used as a technical support tool to clarify some aspects of text preprocessing and data preparation. It provided suggestions regarding punctuation handling, stopword removal, tokenization and the importance of preserving negations during cleaning. It also helped review the stratified split configuration and the separation between training data and vectorizer adaptation.
+
+#### Review & Critical Refinements
+- **Corrected:** The stopword removal process was adjusted to preserve negations such as `not`, `never` and `no`, since removing them could change the original sentiment of a comment.
+- **Adjusted:** Negative contractions are handled before punctuation removal so expressions such as `don't` do not lose their negation. Curly apostrophes are also normalized first.
+- **Adjusted:** The dataset split uses stratification and a fixed seed to maintain the sentiment distribution and reproducibility. The vectorizer is adapted only using training data to avoid data leakage.
+- **Decided:** The placeholders `[NAME]` and `[RELIGION]` are excluded from the processed text. The dataset contains 143 occurrences of `[NAME]`, and these placeholders do not contribute useful sentiment information.
+- **Corrected:** During testing, one of the sanity checks was found to be incorrect because `again` is a stopword. Therefore, the expected result for `"Never again!"` should retain `never`. The test was corrected without changing the preprocessing logic.
+- **Not validated:** The `build_vectorizer` function could not be fully tested because TensorFlow was not installed in the environment.
+
+#### Discarded
+The use of NLTK's stopword corpus was discarded because it requires an additional download and includes negations that would need to be manually preserved. An alternative stopword handling approach was preferred.

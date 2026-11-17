@@ -80,3 +80,43 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 ### 5. Observations & Teammate Hand-off
 - Not done on purpose: cleaning, tokenization and split (IT2-07).
 - Duplicates were checked only among pure positive/negative comments, not against neutral, ambiguous or mixed ones.
+
+## IT2-07: Text cleaning, tokenization and split
+
+- **Date:** 2026-11-17
+- **Owner:** Restrepo
+- **Branch:** `feat/data-pipeline`
+- **Commit Reference:** Refs: IT2-07
+
+### 1. Technical Decision / Hypothesis
+- `clean_text`: lowercase, drop `[NAME]` / `[RELIGION]`, turn negative contractions into `not`, remove punctuation, remove stopwords but **keep negations** (`no, not, nor, never, none, nothing, nobody, neither, nowhere, cannot, without, hardly, barely`).
+- `[NAME]` / `[RELIGION]` are dropped, not kept as tokens: they hide a person or group, carry no sentiment, and `[NAME]` appears 143 times in the 1,000 comments, so it would become a noisy frequent word.
+- Stratified 80/20 split with `random_state=SEED`, done before any vectorizer is fitted.
+
+### 2. Context & Rationale
+- `MASTER_PROMPT.md` §6.2 steps 7-8 and §4.2 (the slides remove negations with the standard stopword list).
+- Negative contractions are expanded before removing punctuation. Without this, `don't` becomes `don t` and the negation is lost.
+- The stopword list is written in the code (NLTK-style) so nobody needs to download an NLTK corpus.
+
+### 3. Implementation Details
+- Files: `src/preprocessing.py`, `data/processed/train.csv`, `data/processed/test.csv`, `logs/notes_restrepo.md`.
+- New functions: `clean_text`, `tokenize`, `split_dataset`, `build_vectorizer` (contract §7). Helper: `_sanity_checks`. Running `python -m src.preprocessing` rebuilds the three CSVs.
+- `build_vectorizer` uses Keras `TextVectorization` (`output_mode="int"`, `output_sequence_length=max_len`) and imports TensorFlow inside the function. Pass only the train texts.
+- Processed CSV columns: `comment_id, text, clean_text, label`.
+
+### 4. Verification & Empirical Evidence
+- Command: `python -m src.preprocessing` (twice) and a pandas check.
+- 800 train rows (400/400) and 200 test rows (100/100). No `comment_id` in both sets. `assert` sanity checks pass.
+- Same MD5 on both runs: `train.csv` `2e701a4830c5f77a39793494fb786211`, `test.csv` `7ec72f469b2e7940e50bd3c5286352ca`.
+- Negations kept: `"This is not good"` -> `not good`; `"I don't like it"` -> `not like`; `"Isn’t that great?"` -> `not great`. 214 comments have a negation in the text and 214 keep `not` in `clean_text`.
+- No empty `clean_text` rows. Tokens per cleaned comment: median 6, 95th percentile 13, 99th percentile 15, max 17 (input for `max_len` in the EDA commit).
+- Acceptance criteria checklist:
+  - [x] 800 train / 200 test, 50/50 in each
+  - [x] Negations preserved
+  - [x] Sanity checks pass
+  - [ ] `build_vectorizer` was **not run**: TensorFlow is not installed on this machine (only a temporary venv with pandas and scikit-learn). It must be run in the `environment.yml` environment.
+
+### 5. Observations & Teammate Hand-off
+- Emojis are removed by the cleaning (e.g. `🙄`) and `10/10` becomes `10 10`. This loses a little sentiment signal; the EDA can test keeping `!` and `?` as an ablation (§6.2).
+- Contractions like `i'm` become `i`, which is then removed as a stopword.
+- Not done on purpose: `eda_summary.json` and the `max_len` / `max_words` values (EDA commits), and the with/without-negation ablation.

@@ -1,22 +1,25 @@
 """Data loading, sentiment mapping, text cleaning, tokenization and splitting.
 
 Implemented so far: load_goemotions, load_sentiment_mapping,
-assign_sentiment (IT2-05), build_balanced_dataset (IT2-06).
-Planned public functions (later commits):
-    clean_text, tokenize, split_dataset, build_vectorizer.
+assign_sentiment (IT2-05), build_balanced_dataset (IT2-06), clean_text,
+tokenize, split_dataset, build_vectorizer (IT2-07).
 """
 
 import json
 import logging
+import re
 from pathlib import Path
 
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 SEED: int = 1234
 ROOT: Path = Path(__file__).resolve().parents[1]
 RAW_DIR: Path = ROOT / "data" / "raw"
 PROCESSED_DIR: Path = ROOT / "data" / "processed"
 BALANCED_CSV: Path = PROCESSED_DIR / "goemotions_balanced.csv"
+TRAIN_CSV: Path = PROCESSED_DIR / "train.csv"
+TEST_CSV: Path = PROCESSED_DIR / "test.csv"
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +208,152 @@ def save_balanced_dataset(balanced: pd.DataFrame, path: Path = BALANCED_CSV) -> 
     return path
 
 
+# Words that flip or weaken sentiment. They are never removed as stopwords.
+NEGATIONS: frozenset[str] = frozenset(
+    {"no", "not", "nor", "never", "none", "nothing", "nobody", "neither",
+     "nowhere", "cannot", "without", "hardly", "barely"}
+)
+
+# Common English stopwords (NLTK-style). Written here so no corpus download
+# is needed. Negations are subtracted when ``keep_negations`` is True.
+_BASE_STOPWORDS: frozenset[str] = frozenset(
+    """a about above after again against all am an and any are as at be because
+    been before being below between both but by can could did do does doing
+    down during each few for from further had has have having he her here hers
+    herself him himself his how i if in into is it its itself just me more most
+    my myself of off on once only or other our ours ourselves out over own same
+    she should so some such than that the their theirs them themselves then
+    there these they this those through to too under until up very was we were
+    what when where which while who whom why will with would you your yours
+    yourself yourselves""".split()
+) | NEGATIONS
+
+_NEGATIVE_CONTRACTIONS: tuple[tuple[str, str], ...] = (
+    (r"\bwon't\b", "will not"),
+    (r"\bcan't\b", "can not"),
+    (r"\bain't\b", "is not"),
+    (r"n't\b", " not"),
+)
+_MASK_PATTERN = re.compile(r"\[(?:name|religion)\]")
+_CONTRACTION_SUFFIX = re.compile(r"'(?:s|m|re|ve|ll|d)\b")
+_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+
+
+def clean_text(
+    text: str, remove_stopwords: bool = True, keep_negations: bool = True
+) -> str:
+    """Clean one comment for modeling.
+
+    Steps: lowercase; drop the masked tokens ``[NAME]`` and ``[RELIGION]``
+    (they hide a person or group and carry no sentiment); turn negative
+    contractions into ``not`` (``don't`` -> ``do not``) so negation survives
+    punctuation removal; drop other contraction suffixes; remove punctuation;
+    optionally remove stopwords while keeping negations.
+
+    Args:
+        text: Raw comment.
+        remove_stopwords: Remove common English stopwords.
+        keep_negations: Keep words like ``not`` and ``never`` even when
+            ``remove_stopwords`` is True.
+
+    Returns:
+        Cleaned text with tokens separated by one space (may be empty).
+    """
+    text = text.lower().replace("\u2019", "'")
+    text = _MASK_PATTERN.sub(" ", text)
+    for pattern, replacement in _NEGATIVE_CONTRACTIONS:
+        text = re.sub(pattern, replacement, text)
+    text = _CONTRACTION_SUFFIX.sub("", text)
+    tokens = _TOKEN_PATTERN.findall(text)
+    if remove_stopwords:
+        stopwords = _BASE_STOPWORDS - NEGATIONS if keep_negations else _BASE_STOPWORDS
+        tokens = [t for t in tokens if t not in stopwords]
+    return " ".join(tokens)
+
+
+def tokenize(text: str) -> list[str]:
+    """Split a cleaned text into tokens.
+
+    Args:
+        text: Output of :func:`clean_text`.
+
+    Returns:
+        List of tokens (empty list for empty text).
+    """
+    return text.split()
+
+
+def split_dataset(
+    df: pd.DataFrame, test_size: float = 0.2, seed: int = SEED
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split into train and test, stratified by ``label`` and seeded.
+
+    Do this before fitting any vectorizer so the test set stays unseen.
+
+    Args:
+        df: Balanced dataset with a ``label`` column.
+        test_size: Fraction of rows for the test set.
+        seed: Random seed.
+
+    Returns:
+        ``(train, test)`` DataFrames with a fresh index.
+    """
+    train, test = train_test_split(
+        df, test_size=test_size, random_state=seed, stratify=df["label"]
+    )
+    return train.reset_index(drop=True), test.reset_index(drop=True)
+
+
+def build_vectorizer(texts: pd.Series, max_tokens: int, max_len: int):
+    """Build a Keras ``TextVectorization`` layer adapted on ``texts``.
+
+    Pass the **train** texts only, so the vocabulary never sees the test set.
+
+    Args:
+        texts: Training texts (usually the ``clean_text`` column).
+        max_tokens: Maximum vocabulary size.
+        max_len: Output sequence length (padding / truncation).
+
+    Returns:
+        An adapted ``keras.layers.TextVectorization`` layer.
+    """
+    from tensorflow import keras  # imported here: only the models need it
+
+    vectorizer = keras.layers.TextVectorization(
+        max_tokens=max_tokens,
+        output_mode="int",
+        output_sequence_length=max_len,
+    )
+    vectorizer.adapt(texts.to_numpy())
+    return vectorizer
+
+
+def _sanity_checks(train: pd.DataFrame, test: pd.DataFrame) -> None:
+    """Small assert-based checks for cleaning and the split."""
+    assert "not" in clean_text("This is not good").split()
+    assert clean_text("I don't like it") == "not like"
+    assert clean_text("Never again!") == "never"
+    assert clean_text("Thanks [NAME]!") == "thanks"
+    assert "not" not in clean_text("not good", keep_negations=False).split()
+    assert tokenize("not good") == ["not", "good"] and tokenize("") == []
+    assert len(train) == 800 and len(test) == 200
+    for part in (train, test):
+        assert part["label"].value_counts().to_dict() == {0: len(part) // 2, 1: len(part) // 2}
+    assert not set(train["comment_id"]) & set(test["comment_id"])
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     full = assign_sentiment(load_goemotions(), load_sentiment_mapping())
     out = save_balanced_dataset(build_balanced_dataset(full))
     logger.info("Saved %s", out)
+
+    balanced = pd.read_csv(BALANCED_CSV)
+    balanced["clean_text"] = balanced["text"].apply(clean_text)
+    train_df, test_df = split_dataset(balanced)
+    _sanity_checks(train_df, test_df)
+    columns = ["comment_id", "text", "clean_text", "label"]
+    for frame, path in ((train_df, TRAIN_CSV), (test_df, TEST_CSV)):
+        frame[columns].to_csv(path, index=False, encoding="utf-8", lineterminator="\n")
+        logger.info("Saved %s (%d rows)", path, len(frame))
+    logger.info("Empty clean_text rows: %d", int((balanced["clean_text"] == "").sum()))
