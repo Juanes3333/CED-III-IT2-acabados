@@ -1,0 +1,11 @@
+name: goemotions-it2
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - pip=24.0
+  - setuptools
+  - wheel
