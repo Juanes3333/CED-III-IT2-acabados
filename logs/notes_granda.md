@@ -59,3 +59,26 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 ### 5. Observations & Teammate Hand-off
 - IT2-04 is the final commit of branch `docs/scaffold`.
 - Next step after pushing IT2-04: Open PR for Merge **M2** (`docs/scaffold` -> `main`), assigned to **Daniel Varela (V)** for review.
+
+## IT2-08: Classification Metrics
+
+- **Date:** 2026-11-18
+- **Owner:** Samuel Granda
+- **Branch:** `feat/evaluate-visualize`
+- **Commit Reference:** Refs: IT2-08
+
+### 1. Technical Decision / Hypothesis
+- Use classification metrics to evaluate the performance of binary sentiment models.
+
+### 2. Context & Rationale
+- Accuracy, precision, recall, F1, macro F1, and Cohen's kappa help analyze model performance.
+
+### 3. Implementation Details
+- Worked on the evaluation module in `src/evaluate.py`, including metrics, train/test results, and CSV export.
+
+### 4. Verification & Empirical Evidence
+- Tested the metrics with perfect, balanced, and incorrect predictions.
+- Verified the confusion matrix, train/test results, and CSV export.
+
+### 5. Observations & Teammate Hand-off
+- The evaluation functions are ready for integration with the next project tasks.

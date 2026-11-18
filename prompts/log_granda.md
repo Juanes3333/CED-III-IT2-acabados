@@ -47,3 +47,20 @@ The AI generated initial drafts for `prompts/AI_LOG_TEMPLATE.md` and `logs/NOTES
 - **Accepted:** The core review fields (Prompt, AI Contribution, Review & Critical Refinements) and experiment note fields (Decision, Rationale, Verification).
 - **Adjusted:** Simplified the language across the template and existing log entries to focus on explanations, requirements, debugging, and solution review rather than routine command logging.
 - **Discarded:** Complex survey questionnaires and redundant checklist items that added unnecessary friction.
+
+### [2026-11-18] IT2-08: Classification Metrics
+
+- **Member:** Samuel Granda
+- **Tool / Model:** Antigravity CLI / Claude Sonnet 4.6, ChatGPT
+- **Role of AI:** Implementation Support & Code Review
+
+#### Prompt
+> Help with IT2-08 classification metrics, including Cohen's kappa, train/test evaluation, and CSV export, following the project requirements.
+
+#### AI Contribution
+Antigravity helped prepare the initial implementation of the evaluation functions. ChatGPT provided guidance for reviewing the code and checking the results.
+
+#### Review & Critical Refinements
+- **Accepted:** The evaluation functions and metric calculations.
+- **Verified:** The expected results using different prediction examples.
+- **Kept separate:** Visualizations and model comparison functionality for later tasks.
