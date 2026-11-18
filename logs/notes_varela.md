@@ -111,3 +111,43 @@ in this commit.
 
 Hardware used for model training will be
 documented when the experiments begin.
+
+
+## IT2-10 - Training Utilities
+
+**Date:** 2026-11-17
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+This commit adds reusable training utilities in `src/train.py`:
+
+- `set_seed(seed=1234)`: sets Python, NumPy and TensorFlow random seeds and enables TensorFlow deterministic operations when supported.
+- `get_logger(model_name, log_dir="logs")`: creates a model-specific logger that writes to `training_logs_<model>.txt`.
+- `Timer`: context manager for measuring elapsed time in seconds.
+- `save_grid_results(results, model_name, output_dir="outputs/metrics")`: exports hyperparameter-grid results to CSV and returns the saved path.
+
+### 2. Implementation decisions
+
+- The project seed is defined as `SEED = 1234`.
+- Logger names and output filenames are sanitized to avoid unsafe path characters.
+- Repeated calls to `get_logger` avoid attaching duplicate file handlers for the same log file.
+- `save_grid_results` accepts either a Pandas DataFrame or a list of dictionaries.
+- Grid results are saved without the DataFrame index using the filename `<model>_grid_results.csv`.
+- `Timer` is used with a `with` block and exposes `elapsed_seconds` and `elapsed`.
+
+### 3. Validation results
+
+Validation was performed in the `goemotions-it2` Conda environment on Windows PowerShell.
+
+- Import check: passed. `set_seed`, `get_logger`, `Timer`, and `save_grid_results` imported successfully.
+- Reproducibility check: passed. Python `random`, NumPy, and TensorFlow generated identical values after resetting the seed to `1234`; output confirmed `Reproducible: True`.
+- Logger check: passed. `get_logger('test_model')` wrote an INFO message without errors.
+- Timer check: passed. The context manager measured approximately 1.00 seconds for a one-second sleep.
+- CSV export check: passed. `save_grid_results` created `test_model_grid_results.csv` with rows for units 32 / accuracy 0.85 and units 64 / accuracy 0.90.
+- Temporary test outputs were created outside the repository. The logger test file in `logs` is scheduled for removal before commit.
+
+TensorFlow emitted informational oneDNN/CPU messages and a deprecation warning during the seed test; the test itself passed and these messages did not indicate a failure.
