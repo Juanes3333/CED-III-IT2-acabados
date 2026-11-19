@@ -76,7 +76,6 @@ The use of NLTK's stopword corpus was discarded because it requires an additiona
 - **Role of AI:** Technical Assistance & Code Review
 
 #### Prompt
-> #### Prompt
 > "Can you help me review the configuration of a dense neural network using TF-IDF and MLPClassifier? I want to make sure the pipeline handles vectorization and training correctly, supports parameter configuration by name and avoids data leakage."
 
 #### AI Contribution
@@ -92,3 +91,28 @@ Claude Code was used as a technical support tool to clarify some aspects of comb
 
 #### Discarded
 Nothing significant was discarded. Parameter tuning was left for IT2-17, keeping the current values as initial defaults for the model.
+
+### [2026-11-19] IT2-17: Tune the dense network with GridSearchCV on kappa
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "Can you explain how to configure GridSearchCV for the dense model? I need to use Cohen's kappa, keep the five folds stratified and make sure the search only uses the training data. Also, what is the best way to store the results and selected parameters?"
+
+#### AI Contribution
+Claude Code was used as a technical support tool to clarify some aspects of hyperparameter tuning and cross-validation. It provided suggestions regarding the configuration of `GridSearchCV`, the use of Cohen's kappa as the scoring metric and the organization of the experiment results. It also helped review the reproducibility settings and the process for saving the best parameters and cross-validation results.
+
+#### Review & Critical Refinements
+- **Adjusted:** The scoring configuration uses `make_scorer(cohen_kappa_score)` instead of passing `cohen_kappa_score` directly, since scikit-learn requires a scorer compatible with the estimator evaluation interface.
+- **Adjusted:** `StratifiedKFold(shuffle=True, random_state=SEED)` was used to maintain class proportions across the five folds and ensure reproducibility.
+- **Adjusted:** `return_train_score=True` was included to compare training and validation performance and identify possible overfitting.
+- **Adjusted:** The saved JSON includes the best parameters along with relevant experiment information, such as the score, number of folds and seed. The parameter configuration was also checked for compatibility with `build_dense_pipeline`.
+- **Accepted:** The parameter grid defined in `MASTER_PROMPT.md` §6, containing 48 candidate configurations.
+- **Validated:** The experiment was tested with a toy sample and the real training split of 800 rows, without accessing the test set. A second single-threaded execution was also used to check the consistency of the results.
+- **Interpretation:** 22 of the 48 configurations are within one standard deviation of the best result. Therefore, the selected configuration is not considered a clearly superior solution.
+- **Not validated:** Final performance metrics on the test set, which are scheduled for IT2-18.
+
+#### Discarded
+Adding TF-IDF parameters such as `max_features` and `ngram_range` to the search grid was postponed because it would significantly increase the number of model evaluations and was outside the parameter grid defined in `MASTER_PROMPT.md`. This possibility can be reconsidered in future experiments if necessary.

@@ -157,3 +157,49 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 - Not done on purpose: `run_dense_grid` and the grid search (IT2-17), the notebook and metrics (IT2-18).
 - Train accuracy of 0.929 is a sanity number only. Honest performance comes from CV and the single test evaluation later.
 - Observation: the `MASTER_PROMPT.md` §7 contract says `build_dense_pipeline(**params)`; the defaults live in the function, not in the signature.
+
+## IT2-17: Tune dense network with GridSearchCV on kappa
+
+- **Date:** 2026-11-19
+- **Owner:** Restrepo
+- **Branch:** `feat/dense-nn`
+- **Commit Reference:** Refs: IT2-17
+
+### 1. Technical Decision / Hypothesis
+- `run_dense_grid(X_train, y_train, param_grid, cv=5)` runs `GridSearchCV` on the pipeline from `build_dense_pipeline()`.
+- Scoring is `make_scorer(cohen_kappa_score)`. Accuracy would hide a bias towards one class; kappa corrects for chance agreement, and the course asks for it.
+- Folds are `StratifiedKFold(n_splits=cv, shuffle=True, random_state=SEED)`: both classes keep the same proportion in every fold and the folds are repeatable.
+- `refit=True`, so `best_estimator_` is already refitted on the whole training split and IT2-18 can use it directly.
+- `return_train_score=True` is added so the CSV shows the train-vs-validation gap of each candidate (overfitting evidence for the report).
+- The function only receives training texts and labels. The test file is never read during tuning.
+
+### 2. Context & Rationale
+- `MASTER_PROMPT.md` §6 (Dense NN row) and §4.2 (slide 18, p.48 passes the bare metric function as `scoring`; that is not a scorer).
+- `DENSE_PARAM_GRID` in `src/train.py` holds the grid of §6: `hidden_layer_sizes` {(32,), (64,), (128,), (64, 32)} x `activation` {relu, tanh} x `alpha` {1e-4, 1e-3, 1e-2} x `learning_rate_init` {1e-3, 1e-2} = 48 candidates, 240 fits with 5 folds. Keys use the `mlp__` prefix of IT2-16.
+- Two optional keyword-only arguments were added after the contract signature of §7: `output_dir` (default `outputs/metrics`, used to test without touching the real outputs) and `n_jobs`. Calls that follow the §7 signature still work.
+- sklearn and `src.models` are imported inside the function, so `import src.train` still needs only NumPy and pandas.
+
+### 3. Implementation Details
+- Files: `src/train.py` (new section `# --- Dense (sklearn) grid search ---`), `logs/notes_restrepo.md`, `prompts/log_restrepo.md`.
+- Outputs written by the function:
+  - `outputs/metrics/dense_grid_results.csv`: all 48 candidates sorted by rank, with `param_*` columns, per-fold and mean validation kappa, train kappa and fit time. It uses the existing `save_grid_results`. The `params` column is a JSON string.
+  - `outputs/metrics/dense_best_params.json`: `best_params`, `best_cv_kappa`, scoring name, folds, number of candidates, rows and seed. Rebuild the model with `build_dense_pipeline(**json.load(f)["best_params"])`. Tuples are saved as lists (`[64]`); sklearn accepts them.
+  - `logs/training_logs_dense.txt` through `get_logger("dense")`: start line, best score and params, seconds, saved paths.
+
+### 4. Verification & Empirical Evidence
+- Environment: temporary Python 3.11.18 environment with the pinned versions (scikit-learn 1.4.2, pandas 2.2.2, numpy 1.26.4). IT2-16 was first checked with scikit-learn 1.9.1; it also fits and sets parameters by name with 1.4.2.
+- Toy run (60 texts, 4 candidates, 3 folds, output in a scratch folder): returns a `GridSearchCV`, writes the CSV, the JSON and the log.
+- Real run on `data/processed/train.csv` (800 rows, 400 per class), 48 candidates x 5 folds, 12.5 seconds with `n_jobs=-1`.
+- Best candidate: `relu`, `alpha=0.01`, `hidden_layer_sizes=(64,)`, `learning_rate_init=0.01`, mean CV kappa **0.470** (std 0.040), mean train kappa 0.834. Validation kappa across all candidates goes from 0.31 to 0.47.
+- Rebuilding the pipeline from the saved JSON and fitting it on the train split works (train accuracy 0.959).
+- Acceptance criteria checklist:
+  - [x] Grid runs on the train split only (the function never receives test data)
+  - [x] Best params saved (`dense_best_params.json`) and all CV results saved (`dense_grid_results.csv`)
+  - [x] The scorer fix is written in `prompts/log_restrepo.md` as a critique of slide 18
+
+### 5. Observations & Teammate Hand-off
+- 22 of the 48 candidates are within one standard deviation of the best mean kappa (0.040). The "best" configuration is not clearly better than its neighbours; say this in the report instead of presenting it as a sharp winner.
+- The gap between train kappa (0.83) and validation kappa (0.47) shows that the network overfits the 800 training rows. A stronger `alpha` or a smaller vocabulary (`tfidf__max_features`) could be explored later, but they are not part of this grid.
+- Not done on purpose: the train and test metrics, the confusion matrix, the top TF-IDF weights, the notebook and the saved model (IT2-18). The test set has not been used.
+- The run created `logs/training_logs_dense.txt`, `outputs/metrics/dense_grid_results.csv` and `outputs/metrics/dense_best_params.json`. They are not in the "Files" line of IT2-17 in `COMMITS.md`; the team should decide whether to commit them here or with IT2-18.
+- Reproducibility: re-running the whole grid single-threaded (`n_jobs=1`) gave exactly the same ranking and the same mean kappa (maximum difference 0.0) as the `n_jobs=-1` run. Results on another machine or library version may still differ.
