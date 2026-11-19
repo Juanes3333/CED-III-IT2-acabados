@@ -203,3 +203,49 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 - Not done on purpose: the train and test metrics, the confusion matrix, the top TF-IDF weights, the notebook and the saved model (IT2-18). The test set has not been used.
 - The run created `logs/training_logs_dense.txt`, `outputs/metrics/dense_grid_results.csv` and `outputs/metrics/dense_best_params.json`. They are not in the "Files" line of IT2-17 in `COMMITS.md`; the team should decide whether to commit them here or with IT2-18.
 - Reproducibility: re-running the whole grid single-threaded (`n_jobs=1`) gave exactly the same ranking and the same mean kappa (maximum difference 0.0) as the `n_jobs=-1` run. Results on another machine or library version may still differ.
+
+## IT2-18: Dense network section in the model notebook
+
+- **Date:** 2026-11-19
+- **Owner:** Restrepo
+- **Branch:** `feat/dense-nn`
+- **Commit Reference:** Refs: IT2-18
+
+### 1. Technical Decision / Hypothesis
+- `notebooks/03_dense_rnn_lstm.ipynb` is created with: a header (objective, outputs, step order, owners), a shared setup (imports, seed, load train and test), the full Dense section, and three empty headed sections `## RNN`, `## LSTM` and `## Comparison` for Varela and Granda.
+- The Dense section follows the professor's step order (slide 18): importing libraries, loading, splitting, building, hyperparameter fine tuning, best configuration, training, prediction on train, prediction on test, metrics. Titles are questions and there is one step per cell.
+- The tuning cell calls `run_dense_grid` (IT2-17), so the notebook runs from top to bottom from a fresh clone and does not depend on files that are not in the repository.
+- The test set is used once, after the configuration is fixed. The training step rebuilds the pipeline with `best_params_` and checks that it predicts the same as `grid.best_estimator_`.
+
+### 2. Context & Rationale
+- Report both splits with the same metrics (rubric: overfitting check) and an insight text after every output (`MASTER_PROMPT.md` §4.1 and §6).
+- "Top TF-IDF weights": an `MLPClassifier` has no single weight per word. We use a one-word probe: each term alone is a unit TF-IDF vector (rows are L2-normalised) and we read the log-odds of the positive class. Plain probabilities saturate near 0 and 1 (the first version of the figure showed all bars full), so the figure uses log-odds. The notebook says this is a probe and not a linear coefficient.
+- The shared setup seeds Python and NumPy but does not call `src.train.set_seed`, because that function needs TensorFlow and the Dense section does not. A comment tells the RNN and LSTM authors to call it in their sections.
+- Honest comment on the 200-row test set: the notebook prints a rough 95% interval for the accuracy (normal approximation). The bootstrap intervals belong to IT2-24.
+
+### 3. Implementation Details
+- Files committed: `notebooks/03_dense_rnn_lstm.ipynb`, `outputs/metrics/dense_metrics.csv`, `outputs/figures/dense_confusion_matrix.png`, `outputs/figures/dense_top_terms.png`, `outputs/saved_models/dense_pipeline.joblib` (1.3 MB, small enough to commit), `logs/notes_restrepo.md`, `prompts/log_restrepo.md`.
+- Helpers used from the project: `evaluate_train_test`, `save_metrics`, `confusion_matrix_data`, `plot_confusion_matrix`, `build_dense_pipeline`, `run_dense_grid`, `DENSE_PARAM_GRID`. No source file was changed in this commit.
+- Not committed on purpose (local outputs of the tuning cell): `outputs/metrics/dense_grid_results.csv`, `outputs/metrics/dense_best_params.json`, `logs/training_logs_dense.txt`. The team decided they are not part of the commit; running the notebook regenerates them.
+
+### 4. Verification & Empirical Evidence
+- Environment: temporary Python 3.11.18 with scikit-learn 1.4.2, pandas 2.2.2, numpy 1.26.4, joblib 1.4.2, matplotlib 3.8.4, seaborn 0.13.2, wordcloud 1.9.3, ipykernel 6.29.4 and nbconvert 7.16.4 (versions of `requirements.txt`). It was not the conda environment of `environment.yml`, and TensorFlow was not installed (this section does not need it).
+- `python -m nbconvert --to notebook --execute --inplace notebooks/03_dense_rnn_lstm.ipynb` runs top to bottom with no errors (42 cells), and a second run gives the same numbers.
+- `dense_metrics.csv` has a train row and a test row with the five metrics (plus macro F1):
+  - train: accuracy 0.959, precision 0.969, recall 0.948, F1 0.958, kappa 0.918
+  - test: accuracy 0.720, precision 0.724, recall 0.710, F1 0.717, kappa 0.440
+- Baseline comparison: best baseline test accuracy is 0.515 (`dummy_stratified`) and the dense test accuracy is 0.720. The notebook asserts this.
+- Test confusion matrix: tn 73, fp 27, fn 29, tp 71.
+- CV kappa of the best configuration 0.470 (std 0.040) against test kappa 0.440.
+- The saved pipeline reloads and gives the same test predictions. The notebook has no personal paths in its outputs.
+- Acceptance criteria checklist:
+  - [x] Notebook runs top to bottom
+  - [x] Metrics CSV has train and test rows
+  - [x] Accuracy above the baseline (0.720 vs 0.515)
+
+### 5. Observations & Teammate Hand-off
+- **Varela and Granda:** write only inside `## RNN`, `## LSTM` and `## Comparison`. Do not edit the setup cell; if you need another import, add it at the top of your own section. The tuning cell takes about 12 to 15 seconds.
+- Overfitting is large (train accuracy 0.96, test 0.72). It is a result to explain in the report, not a bug.
+- 22 of 48 tuned candidates are within one standard deviation of the best, and the test accuracy has a rough interval of about +/- 0.06. The final comparison must not claim a winner when intervals overlap.
+- The one-word probe contains some terms that are not obviously emotional (`trust`, `show`, `may`, `mind`, `wish`). They probably come from the small sample; the final error analysis can look at them.
+- Merge M8 comes after review of the three commits IT2-16, IT2-17 and IT2-18 (PR from `feat/dense-nn`).

@@ -116,3 +116,29 @@ Claude Code was used as a technical support tool to clarify some aspects of hype
 
 #### Discarded
 Adding TF-IDF parameters such as `max_features` and `ngram_range` to the search grid was postponed because it would significantly increase the number of model evaluations and was outside the parameter grid defined in `MASTER_PROMPT.md`. This possibility can be reconsidered in future experiments if necessary.
+
+### [2026-11-19] IT2-18: Dense network section in the model notebook
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "What should I consider when documenting the Dense neural network results in the shared notebook? I need to include the evaluation metrics, confusion matrix, influential terms and the main conclusions, while keeping the other model sections available for the team."
+
+#### AI Contribution
+Claude Code was used as a technical support tool to review the notebook structure and clarify some aspects of presenting the Dense model results. It provided suggestions regarding the organization of the analysis, the evaluation metrics, the visualization of influential terms and the interpretation of the model's performance. It also helped review the reproducibility of the results and the organization of the shared notebook.
+
+#### Review & Critical Refinements
+- **Accepted:** The professor's step order, using question-style titles and separate cells for each stage, with the same evaluation metrics for training and test data.
+- **Adjusted:** The tuning process reuses `run_dense_grid` with the previously established scorer, stratified folds and training-only data. The test set is evaluated only after the model configuration is fixed.
+- **Adjusted:** The influential terms visualization was changed to a diverging log-odds chart because the initial probability-based approach produced saturated values that were not informative. The notebook also clarifies that this is a one-word probe, not a linear coefficient interpretation.
+- **Adjusted:** The conclusions were revised to avoid claiming that regularization improved performance, since the differences between `alpha` values were within the observed variation.
+- **Adjusted:** The explanation of empty cleaned texts was clarified. Since none were found in the dataset splits, `fillna` is described only as a safety measure.
+- **Adjusted:** The seed configuration uses `random` and NumPy without importing TensorFlow, since the Dense section does not require it. The Keras sections must configure their own seed.
+- **Accepted with limitations:** A rough normal-approximation interval for test accuracy (approximately ±0.06) was included as a reference for the small test set, without replacing the bootstrap intervals planned for IT2-24.
+- **Validated:** The notebook was executed without errors and produced consistent results on a second run. The `dense_metrics.csv` file contains training and test results, test accuracy reached 0.720 compared with 0.515 for the best baseline, and the saved pipeline was reloaded with matching predictions.
+- **Not validated:** The exact Conda environment specified in `environment.yml` and TensorFlow were not tested. Validation used a temporary Python 3.11 environment with the versions from `requirements.txt`.
+
+#### Discarded
+The MLP loss-curve figure and grid heatmap were discarded because they did not add relevant information for the evaluation criteria. Using the first-layer weights as direct TF-IDF word importance was also discarded because the hidden layer combines information from multiple words, making those weights unsuitable for direct per-word interpretation.
