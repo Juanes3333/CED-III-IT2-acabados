@@ -218,3 +218,44 @@ Pending execution of the updated notebook in the `goemotions-it2` Conda environm
 ### 4. Interpretation and limitations
 
 The plots are descriptive. The sentiment chart compares the five project groups; the emotion chart counts individual label assignments; the text-length histogram describes comment word counts; and the label-count chart shows how many emotion labels each comment contains. These observations can inform later preprocessing, but they do not by themselves determine model-specific truncation or filtering decisions.
+
+
+## IT2-13 - EDA insights and preprocessing justification
+
+**Date:** 2026-11-19
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Extended `notebooks/01_eda.ipynb` with data-quality conclusions, preprocessing rationale, and calculation of the sequence parameters required by later RNN/LSTM/Transformer work. Added `outputs/metrics/eda_summary.json` and read it back in the notebook to validate its contents.
+
+### 2. Parameter calculation
+
+- `max_len`: 13, the 95th percentile of word counts in `clean_text` from the 800-row training split.
+- `max_words`: 2302, the number of unique tokens in `clean_text` from the training split only.
+- Training rows: 800; test rows: 200.
+- Empty cleaned training texts: 0.
+- Vocabulary scope excludes the test split to avoid using test information when defining the training vocabulary.
+
+### 3. Insights and preprocessing decisions
+
+- The original-data EDA found no null values, empty texts, or repeated comment IDs. It identified 320 repeated rows by normalized text; this EDA check was descriptive and did not remove records.
+- The five sentiment-group counts matched the project reference values.
+- The downstream binary dataset is balanced at 500 positive and 500 negative examples; its split contains 800 training and 200 test examples.
+- The shared `clean_text` implementation lowercases text, expands negative contractions, removes punctuation and masked `[NAME]` / `[RELIGION]` markers, and removes common stopwords.
+- Negations such as `no`, `not`, and `never` are retained because removing them can reverse the meaning of a sentiment-bearing phrase.
+- `max_len` uses the 95th percentile of training word lengths as a compromise between sequence coverage and computational cost. Some longer examples may be truncated.
+- `max_words` is based only on unique cleaned tokens in the training split; the test vocabulary is not used.
+
+### 4. Validation
+
+The notebook includes assertions that compare the values read from `outputs/metrics/eda_summary.json` with the values calculated in the same run. Run the notebook top-to-bottom in `Python (goemotions-it2)` and verify that the JSON is created and read successfully.
+
+### 5. Output
+
+- `outputs/metrics/eda_summary.json`
+- Updated `notebooks/01_eda.ipynb`
+- Updated `logs/notes_varela.md`
