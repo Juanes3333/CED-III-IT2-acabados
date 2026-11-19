@@ -151,3 +151,111 @@ Validation was performed in the `goemotions-it2` Conda environment on Windows Po
 - Temporary test outputs were created outside the repository. The logger test file in `logs` is scheduled for removal before commit.
 
 TensorFlow emitted informational oneDNN/CPU messages and a deprecation warning during the seed test; the test itself passed and these messages did not indicate a failure.
+
+## IT2-11 - Exploratory Data Analysis (EDA)
+
+**Date:** 2026-11-18
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Created `notebooks/01_eda.ipynb` to inspect the original GoEmotions data before modeling. The notebook uses the shared loading and sentiment-mapping functions from `src/preprocessing.py`. It does not modify the raw files or remove records.
+
+The analysis covers the combined `train.tsv`, `dev.tsv` and `test.tsv` files, their structure and descriptive summary, missing and empty values, repeated identifiers and normalized texts, emotion frequencies, sentiment-group counts, and the masked tokens `[NAME]` and `[RELIGION]`.
+
+### 2. Observed results
+
+- Total comments loaded: 54,263.
+- Columns: `comment_id`, `text`, `emotion_ids`, `emotions`, `sentiment` (5 columns).
+- Defined emotions: 28.
+- Missing values: 0 across all columns.
+- Empty or whitespace-only text values: 0.
+- Empty comment identifiers: 0.
+- Empty emotion-id lists: 0.
+- Repeated comment identifiers: 0.
+- Repeated rows by normalized text: 320. This is a descriptive count; no rows were removed in the notebook.
+- Sentiment counts matched the reference values exactly: positive 19,020; negative 10,217; ambiguous 4,805; neutral 16,021; mixed 4,200 (54,263 total).
+- The most frequent individual emotion shown in the output was `neutral`, with 17,772 occurrences. Emotion occurrences count labels, not unique comments.
+- `[NAME]`: present in 7,558 comments, with 9,598 total occurrences.
+- `[RELIGION]`: present in 121 comments, with 132 total occurrences.
+
+### 3. Validation
+
+The notebook was opened in Jupyter using the `Python (goemotions-it2)` kernel and marked as Trusted. The user executed the notebook and shared the resulting outputs for review. The displayed cells completed through the masked-token examples, with no error visible in the supplied screenshots.
+
+### 4. Interpretation and limitations
+
+The sentiment-group mapping reproduces all five reference counts. No missing or empty values and no repeated comment identifiers were observed. The normalized-text check found 320 repeated rows, but this EDA notebook does not remove them. The masked tokens are counted and inspected without modifying the original texts. Cleaning, balancing and splitting remain responsibilities of the shared preprocessing pipeline.
+
+
+## IT2-12 - EDA visualizations
+
+**Date:** 2026-11-18
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Extended `notebooks/01_eda.ipynb` with visualizations based on the combined original GoEmotions dataset. The new section includes: (1) comment counts and percentages by sentiment group, (2) the 15 most frequent individual emotions, (3) the distribution of comment length measured in words, and (4) the number of emotion labels assigned per comment. A final cell prints calculated indicators to support interpretation.
+
+### 2. Implementation decisions
+
+- Used Matplotlib for the plots; no additional visualization dependency was introduced.
+- Reused the DataFrame and emotion/sentiment counts created in IT2-11.
+- Kept the original data unchanged and did not remove or filter records for the visualizations.
+- Added a short interpretation after each chart, distinguishing emotion-label occurrences from unique comments.
+- Used calculated percentages and summary statistics rather than estimating values from chart appearance.
+
+### 3. Validation
+
+Pending execution of the updated notebook in the `goemotions-it2` Conda environment. The visualizations and their output tables should be checked by running all cells from top to bottom.
+
+### 4. Interpretation and limitations
+
+The plots are descriptive. The sentiment chart compares the five project groups; the emotion chart counts individual label assignments; the text-length histogram describes comment word counts; and the label-count chart shows how many emotion labels each comment contains. These observations can inform later preprocessing, but they do not by themselves determine model-specific truncation or filtering decisions.
+
+
+## IT2-13 - EDA insights and preprocessing justification
+
+**Date:** 2026-11-19
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Extended `notebooks/01_eda.ipynb` with data-quality conclusions, preprocessing rationale, and calculation of the sequence parameters required by later RNN/LSTM/Transformer work. Added `outputs/metrics/eda_summary.json` and read it back in the notebook to validate its contents.
+
+### 2. Parameter calculation
+
+- `max_len`: 13, the 95th percentile of word counts in `clean_text` from the 800-row training split.
+- `max_words`: 2302, the number of unique tokens in `clean_text` from the training split only.
+- Training rows: 800; test rows: 200.
+- Empty cleaned training texts: 0.
+- Vocabulary scope excludes the test split to avoid using test information when defining the training vocabulary.
+
+### 3. Insights and preprocessing decisions
+
+- The original-data EDA found no null values, empty texts, or repeated comment IDs. It identified 320 repeated rows by normalized text; this EDA check was descriptive and did not remove records.
+- The five sentiment-group counts matched the project reference values.
+- The downstream binary dataset is balanced at 500 positive and 500 negative examples; its split contains 800 training and 200 test examples.
+- The shared `clean_text` implementation lowercases text, expands negative contractions, removes punctuation and masked `[NAME]` / `[RELIGION]` markers, and removes common stopwords.
+- Negations such as `no`, `not`, and `never` are retained because removing them can reverse the meaning of a sentiment-bearing phrase.
+- `max_len` uses the 95th percentile of training word lengths as a compromise between sequence coverage and computational cost. Some longer examples may be truncated.
+- `max_words` is based only on unique cleaned tokens in the training split; the test vocabulary is not used.
+
+### 4. Validation
+
+The notebook includes assertions that compare the values read from `outputs/metrics/eda_summary.json` with the values calculated in the same run. Run the notebook top-to-bottom in `Python (goemotions-it2)` and verify that the JSON is created and read successfully.
+
+### 5. Output
+
+- `outputs/metrics/eda_summary.json`
+- Updated `notebooks/01_eda.ipynb`
+- Updated `logs/notes_varela.md`
