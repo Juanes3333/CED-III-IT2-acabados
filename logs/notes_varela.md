@@ -151,3 +151,41 @@ Validation was performed in the `goemotions-it2` Conda environment on Windows Po
 - Temporary test outputs were created outside the repository. The logger test file in `logs` is scheduled for removal before commit.
 
 TensorFlow emitted informational oneDNN/CPU messages and a deprecation warning during the seed test; the test itself passed and these messages did not indicate a failure.
+
+## IT2-11 - Exploratory Data Analysis (EDA)
+
+**Date:** 2026-11-18
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Created `notebooks/01_eda.ipynb` to inspect the original GoEmotions data before modeling. The notebook uses the shared loading and sentiment-mapping functions from `src/preprocessing.py`. It does not modify the raw files or remove records.
+
+The analysis covers the combined `train.tsv`, `dev.tsv` and `test.tsv` files, their structure and descriptive summary, missing and empty values, repeated identifiers and normalized texts, emotion frequencies, sentiment-group counts, and the masked tokens `[NAME]` and `[RELIGION]`.
+
+### 2. Observed results
+
+- Total comments loaded: 54,263.
+- Columns: `comment_id`, `text`, `emotion_ids`, `emotions`, `sentiment` (5 columns).
+- Defined emotions: 28.
+- Missing values: 0 across all columns.
+- Empty or whitespace-only text values: 0.
+- Empty comment identifiers: 0.
+- Empty emotion-id lists: 0.
+- Repeated comment identifiers: 0.
+- Repeated rows by normalized text: 320. This is a descriptive count; no rows were removed in the notebook.
+- Sentiment counts matched the reference values exactly: positive 19,020; negative 10,217; ambiguous 4,805; neutral 16,021; mixed 4,200 (54,263 total).
+- The most frequent individual emotion shown in the output was `neutral`, with 17,772 occurrences. Emotion occurrences count labels, not unique comments.
+- `[NAME]`: present in 7,558 comments, with 9,598 total occurrences.
+- `[RELIGION]`: present in 121 comments, with 132 total occurrences.
+
+### 3. Validation
+
+The notebook was opened in Jupyter using the `Python (goemotions-it2)` kernel and marked as Trusted. The user executed the notebook and shared the resulting outputs for review. The displayed cells completed through the masked-token examples, with no error visible in the supplied screenshots.
+
+### 4. Interpretation and limitations
+
+The sentiment-group mapping reproduces all five reference counts. No missing or empty values and no repeated comment identifiers were observed. The normalized-text check found 320 repeated rows, but this EDA notebook does not remove them. The masked tokens are counted and inspected without modifying the original texts. Cleaning, balancing and splitting remain responsibilities of the shared preprocessing pipeline.
