@@ -81,3 +81,22 @@ ChatGPT provided an initial code proposal and guidance for implementing and test
 - **Reviewed:** The seven functions against the project requirements.
 - **Verified:** All seven functions were tested with synthetic data and generated PNG files successfully.
 - **Decision:** Kept the visualization functionality separate from dataset analysis and model training, as required by the project.
+
+---
+
+### [2026-11-19] IT2-14: DummyClassifier Baseline Notebook
+
+- **Member:** Samuel Granda
+- **Tool / Model:** ChatGPT (GPT-6)
+- **Role of AI:** Requirements Review, Notebook Drafting & Execution Guidance
+
+#### Prompt
+> Help prepare IT2-14 according to `.claude/COMMITS.md`. Create the complete `notebooks/02_baseline_model.ipynb` using `DummyClassifier` with `most_frequent`, `stratified`, and `uniform`. Follow build → fit → predict train → predict test, and report train/test metrics. Keep CSV export and confusion matrix for IT2-15. Provide complete files and paths so I can validate them together later.
+
+#### AI Contribution
+ChatGPT reviewed the existing evaluation and preprocessing interfaces and supplied an initial notebook file with the baseline experiment structure and explanatory Markdown. It also helped organize the IT2-14 documentation and proposed a later terminal-based validation workflow.
+
+#### Review & Critical Refinements
+- **Accepted for initial review:** Reusing the project's existing split, seed, and `evaluate_train_test` function instead of duplicating evaluation code.
+- **Scope decision:** Kept metric persistence and the confusion matrix outside IT2-14 because those outputs belong to IT2-15.
+- **Pending verification:** Run the notebook against the real processed data, inspect the observed metrics, and record any fixes or changes before committing. No experimental success is claimed yet.

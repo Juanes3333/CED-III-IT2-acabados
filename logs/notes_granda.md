@@ -82,6 +82,7 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 
 ### 5. Observations & Teammate Hand-off
 - The evaluation functions are ready for integration with the next project tasks.
+
 ---
 
 ## IT2-09: Visualization Helpers
@@ -107,3 +108,34 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 
 ### 5. Observations & Teammate Hand-off
 - The functions are ready for use in the EDA and model evaluation notebooks.
+
+---
+
+## IT2-14: DummyClassifier Baseline Notebook
+
+- **Date:** 2026-11-19
+- **Owner:** Samuel Granda
+- **Branch:** `feat/baseline`
+- **Commit Reference:** Refs: IT2-14
+
+### 1. Technical Decision / Hypothesis
+- Establish a simple baseline using `DummyClassifier` with `most_frequent`, `stratified`, and `uniform` strategies.
+- On a balanced binary dataset, a model that ignores the text is expected to achieve approximately 0.5 accuracy and Cohen's kappa near zero.
+
+### 2. Context & Rationale
+- The baseline provides a reference for evaluating whether later sentiment classifiers learn useful patterns beyond chance-level predictions.
+- Reuse the existing train/test split and evaluation helpers instead of introducing new data processing or metric implementations.
+
+### 3. Implementation Details
+- File prepared: `notebooks/02_baseline_model.ipynb`.
+- Inputs: `data/processed/train.csv` (800 rows) and `data/processed/test.csv` (200 rows), with `label` as the target.
+- Use seed `1234` and follow the sequence: build, fit, predict train, predict test, evaluate.
+- Use `evaluate_train_test` from `src/evaluate.py` to report accuracy, precision, recall, F1, macro-F1, and Cohen's kappa for both splits.
+
+### 4. Verification & Empirical Evidence
+- The notebook file has been placed in `notebooks/` and its source structure has been reviewed against the IT2-14 requirements.
+- **Pending:** execute all notebook cells and record the actual train/test results. Do not treat the expected 0.5 accuracy or near-zero kappa as observed measurements until execution.
+
+### 5. Observations & Teammate Hand-off
+- IT2-14 is limited to the baseline notebook and personal documentation.
+- Saving `baseline_metrics.csv`, generating `baseline_confusion_matrix.png`, and the final chance-level comparison are reserved for IT2-15.
