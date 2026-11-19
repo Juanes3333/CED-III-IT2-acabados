@@ -120,3 +120,40 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 - Emojis are removed by the cleaning (e.g. `🙄`) and `10/10` becomes `10 10`. This loses a little sentiment signal; the EDA can test keeping `!` and `?` as an ablation (§6.2).
 - Contractions like `i'm` become `i`, which is then removed as a stopword.
 - Not done on purpose: `eda_summary.json` and the `max_len` / `max_words` values (EDA commits), and the with/without-negation ablation.
+
+## IT2-16: Dense neural network on TF-IDF features
+
+- **Date:** 2026-11-19
+- **Owner:** Restrepo
+- **Branch:** `feat/dense-nn`
+- **Commit Reference:** Refs: IT2-16
+
+### 1. Technical Decision / Hypothesis
+- `build_dense_pipeline(**params)` returns `Pipeline([("tfidf", TfidfVectorizer), ("mlp", MLPClassifier)])`.
+- One pipeline means the TF-IDF vocabulary is learned only from the training rows of each fit or CV fold. No test or validation text leaks into the features.
+- Defaults are a small starting point for IT2-17 to tune: TF-IDF with unigrams + bigrams, `min_df=2`, `sublinear_tf=True`; MLP with one hidden layer of 64 ReLU units, `alpha=1e-3`, `max_iter=300`.
+- `early_stopping=True` uses a 10% validation slice taken inside the training data, so the test set is not involved.
+- `random_state=SEED` (1234) in the MLP, so runs are repeatable.
+
+### 2. Context & Rationale
+- `MASTER_PROMPT.md` §7 contract and `COMMITS.md` IT2-16 (slide 23 p.28-30: pipeline prevents leakage).
+- Parameters are set by name with the sklearn `step__param` syntax (`mlp__hidden_layer_sizes`, `tfidf__max_features`, ...), so the same names work in the `GridSearchCV` grid of IT2-17.
+- sklearn is imported inside the function, so importing `src.models` does not need sklearn or TensorFlow (the RNN/LSTM/Transformer sections will add their own imports).
+
+### 3. Implementation Details
+- Files: `src/models.py` (only the `# --- Dense ---` section), `logs/notes_restrepo.md`, `prompts/log_restrepo.md`.
+- Added `SEED = 1234` at the top of the Dense section (the file had no `SEED`). Later sections can reuse it.
+
+### 4. Verification & Empirical Evidence
+- Environment: temporary venv with Python 3.14, scikit-learn 1.9.1, pandas 3.1.1. This is **not** the pinned `environment.yml` (scikit-learn 1.4.2); the code uses only stable API, but IT2-17 and IT2-18 should be run in the pinned environment.
+- Toy sample (30 short texts): the pipeline fits and predicts without errors. The toy predictions are not meaningful (too little data); only the fit was checked.
+- Parameters by name: `mlp__hidden_layer_sizes=(32, 16)`, `mlp__alpha=0.01`, `tfidf__max_features=500` are read back with `get_params()`; `set_params(mlp__hidden_layer_sizes=(8,))` works; an invalid name raises `ValueError`.
+- Fit on `data/processed/train.csv` (800 rows, `clean_text`): vocabulary 786 terms, train accuracy 0.929. The test file was not read.
+- Acceptance criteria checklist:
+  - [x] Fits on a toy sample
+  - [x] Params settable by name (`mlp__hidden_layer_sizes`, ...)
+
+### 5. Observations & Teammate Hand-off
+- Not done on purpose: `run_dense_grid` and the grid search (IT2-17), the notebook and metrics (IT2-18).
+- Train accuracy of 0.929 is a sanity number only. Honest performance comes from CV and the single test evaluation later.
+- Observation: the `MASTER_PROMPT.md` §7 contract says `build_dense_pipeline(**params)`; the defaults live in the function, not in the signature.

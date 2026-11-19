@@ -68,3 +68,27 @@ Claude Code was used as a technical support tool to clarify some aspects of text
 
 #### Discarded
 The use of NLTK's stopword corpus was discarded because it requires an additional download and includes negations that would need to be manually preserved. An alternative stopword handling approach was preferred.
+
+### [2026-11-19] IT2-16: Dense neural network on TF-IDF features
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> #### Prompt
+> "Can you help me review the configuration of a dense neural network using TF-IDF and MLPClassifier? I want to make sure the pipeline handles vectorization and training correctly, supports parameter configuration by name and avoids data leakage."
+
+#### AI Contribution
+Claude Code was used as a technical support tool to clarify some aspects of combining TF-IDF vectorization with a dense neural network. It provided suggestions regarding the use of `Pipeline`, parameter configuration and reproducibility. It also helped review the training process and some validation checks to ensure that the model could be configured and fitted correctly.
+
+#### Review & Critical Refinements
+- **Accepted:** The use of `TfidfVectorizer` and `MLPClassifier` within a single `Pipeline`, ensuring that the vocabulary is learned only from training data during fitting and cross-validation, preventing data leakage.
+- **Adjusted:** `early_stopping=True` was retained because scikit-learn creates its validation subset from the training data. The test set is not used to determine when training stops.
+- **Adjusted:** `random_state=SEED` was configured in the MLP to make the training results reproducible.
+- **Adjusted:** Scikit-learn imports are placed inside the function so that `src.models` can be imported without requiring scikit-learn or TensorFlow immediately.
+- **Validated:** The pipeline was tested with a toy sample, its parameters were checked by name, and a train-only fit was performed using the real training split. The test file was not accessed.
+- **Not validated:** Testing was performed with scikit-learn 1.9.1 on Python 3.14 instead of the versions specified in `environment.yml` (1.4.2). This verification remains pending for IT2-17 and IT2-18.
+
+#### Discarded
+Nothing significant was discarded. Parameter tuning was left for IT2-17, keeping the current values as initial defaults for the model.
