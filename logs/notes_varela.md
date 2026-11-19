@@ -189,3 +189,32 @@ The notebook was opened in Jupyter using the `Python (goemotions-it2)` kernel an
 ### 4. Interpretation and limitations
 
 The sentiment-group mapping reproduces all five reference counts. No missing or empty values and no repeated comment identifiers were observed. The normalized-text check found 320 repeated rows, but this EDA notebook does not remove them. The masked tokens are counted and inspected without modifying the original texts. Cleaning, balancing and splitting remain responsibilities of the shared preprocessing pipeline.
+
+
+## IT2-12 - EDA visualizations
+
+**Date:** 2026-11-18
+
+**Owner:** Daniel Varela
+
+**GitHub user:** Danielvarelavictoria
+
+### 1. Scope
+
+Extended `notebooks/01_eda.ipynb` with visualizations based on the combined original GoEmotions dataset. The new section includes: (1) comment counts and percentages by sentiment group, (2) the 15 most frequent individual emotions, (3) the distribution of comment length measured in words, and (4) the number of emotion labels assigned per comment. A final cell prints calculated indicators to support interpretation.
+
+### 2. Implementation decisions
+
+- Used Matplotlib for the plots; no additional visualization dependency was introduced.
+- Reused the DataFrame and emotion/sentiment counts created in IT2-11.
+- Kept the original data unchanged and did not remove or filter records for the visualizations.
+- Added a short interpretation after each chart, distinguishing emotion-label occurrences from unique comments.
+- Used calculated percentages and summary statistics rather than estimating values from chart appearance.
+
+### 3. Validation
+
+Pending execution of the updated notebook in the `goemotions-it2` Conda environment. The visualizations and their output tables should be checked by running all cells from top to bottom.
+
+### 4. Interpretation and limitations
+
+The plots are descriptive. The sentiment chart compares the five project groups; the emotion chart counts individual label assignments; the text-length histogram describes comment word counts; and the label-count chart shows how many emotion labels each comment contains. These observations can inform later preprocessing, but they do not by themselves determine model-specific truncation or filtering decisions.
