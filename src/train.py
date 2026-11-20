@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import re
+from itertools import product
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -17,12 +18,7 @@ SEED = 1234
 
 
 def set_seed(seed: int = SEED) -> None:
-    """Set random seeds for Python, NumPy and TensorFlow when available.
-
-    TensorFlow deterministic operations are enabled when the installed version
-    supports them. PYTHONHASHSEED is set for child processes; it cannot change
-    the hash seed of the current Python process after startup.
-    """
+    """Set random seeds for Python, NumPy and TensorFlow when available."""
     seed = int(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
@@ -36,7 +32,9 @@ def set_seed(seed: int = SEED) -> None:
         ) from exc
 
     tf.keras.utils.set_random_seed(seed)
-    enable_determinism = getattr(tf.config.experimental, "enable_op_determinism", None)
+    enable_determinism = getattr(
+        tf.config.experimental, "enable_op_determinism", None
+    )
     if callable(enable_determinism):
         enable_determinism()
 
@@ -59,10 +57,11 @@ def get_logger(model_name: str, log_dir: str | Path = "logs") -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    # Avoid duplicate handlers when this function is called repeatedly.
     handler_marker = str(log_path.resolve())
-    if not any(getattr(handler, "_train_utils_path", None) == handler_marker
-               for handler in logger.handlers):
+    if not any(
+        getattr(handler, "_train_utils_path", None) == handler_marker
+        for handler in logger.handlers
+    ):
         file_handler = logging.FileHandler(log_path, encoding="utf-8")
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
@@ -100,11 +99,7 @@ def save_grid_results(
     model_name: str,
     output_dir: str | Path = "outputs/metrics",
 ) -> Path:
-    """Save hyperparameter-grid results as CSV and return the output path.
-
-    Accepts either a Pandas DataFrame or a list of dictionaries.
-    The file is named <model_name>_grid_results.csv.
-    """
+    """Save hyperparameter-grid results as CSV and return the output path."""
     safe_model = _safe_name(model_name)
     if isinstance(results, pd.DataFrame):
         dataframe = results.copy()
@@ -123,8 +118,6 @@ def save_grid_results(
 
 # --- Dense (sklearn) grid search ---
 
-# Grid from MASTER_PROMPT.md section 6. Keys use the Pipeline "step__param" names
-# of build_dense_pipeline(), so they can be passed to GridSearchCV as they are.
 DENSE_PARAM_GRID: dict[str, list[Any]] = {
     "mlp__hidden_layer_sizes": [(32,), (64,), (128,), (64, 32)],
     "mlp__activation": ["relu", "tanh"],
@@ -151,26 +144,7 @@ def run_dense_grid(
     output_dir: str | Path = "outputs/metrics",
     n_jobs: int | None = None,
 ):
-    """Tune the TF-IDF + MLP pipeline with GridSearchCV on Cohen's kappa.
-
-    Only the training texts and labels are passed in, so the test set is never
-    used for tuning. The vectorizer is inside the pipeline: each CV fold learns
-    its own TF-IDF vocabulary from the fold's training rows only.
-
-    Args:
-        X_train: Training texts (for example ``train["clean_text"]``).
-        y_train: Training labels.
-        param_grid: ``GridSearchCV`` grid with ``step__param`` keys, such as
-            ``mlp__hidden_layer_sizes``. See ``DENSE_PARAM_GRID``.
-        cv: Number of stratified folds.
-        output_dir: Folder for ``dense_grid_results.csv`` and
-            ``dense_best_params.json``.
-        n_jobs: Parallel jobs for ``GridSearchCV`` (``None`` = one job).
-
-    Returns:
-        The fitted ``GridSearchCV`` (``refit=True``, so ``best_estimator_`` has
-        been refitted on the whole training split).
-    """
+    """Tune the TF-IDF + MLP pipeline with GridSearchCV on Cohen's kappa."""
     import json
 
     from sklearn.metrics import cohen_kappa_score, make_scorer
@@ -185,8 +159,6 @@ def run_dense_grid(
         len(X_train), n_candidates, cv, SEED,
     )
 
-    # make_scorer turns the metric into a scorer; passing the bare function
-    # (slide 18) would fail because scorers receive (estimator, X, y).
     kappa_scorer = make_scorer(cohen_kappa_score)
     folds = StratifiedKFold(n_splits=cv, shuffle=True, random_state=SEED)
     search = GridSearchCV(
@@ -204,7 +176,9 @@ def run_dense_grid(
 
     results = pd.DataFrame(search.cv_results_).sort_values("rank_test_score")
     results["params"] = results["params"].apply(
-        lambda params: json.dumps(params, default=_json_default, sort_keys=True)
+        lambda params: __import__("json").dumps(
+            params, default=_json_default, sort_keys=True
+        )
     )
     csv_path = save_grid_results(results, "dense", output_dir)
 
@@ -219,7 +193,8 @@ def run_dense_grid(
         "seed": SEED,
     }
     json_path.write_text(
-        json.dumps(best, indent=2, default=_json_default) + "\n", encoding="utf-8"
+        __import__("json").dumps(best, indent=2, default=_json_default) + "\n",
+        encoding="utf-8",
     )
 
     logger.info(
@@ -228,3 +203,267 @@ def run_dense_grid(
     )
     logger.info("Saved %s and %s", csv_path, json_path)
     return search
+
+
+# --- Keras sequence-model grid search ---
+
+KERAS_PARAM_GRID: dict[str, list[Any]] = {
+    "units": [32, 64, 128],
+    "embedding_dim": [50, 100],
+    "dropout": [0.2, 0.5],
+    "batch_size": [16, 32, 64],
+    "optimizer": ["RMSprop", "Adam"],
+}
+
+
+def _keras_model_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Translate shared grid names into model-builder parameter names."""
+    translated = dict(params)
+    if "units" in translated:
+        translated["rnn_units"] = translated.pop("units")
+    if "dropout" in translated:
+        translated["dropout_rate"] = translated.pop("dropout")
+    translated.pop("batch_size", None)
+    translated.pop("optimizer", None)
+    return translated
+
+
+def _build_keras_candidate(
+    build_fn,
+    params: dict[str, Any],
+    model_kwargs: dict[str, Any],
+):
+    """Build and compile one candidate using the selected optimizer."""
+    import tensorflow as tf
+
+    model_params = {**model_kwargs, **_keras_model_params(params)}
+    model = build_fn(**model_params)
+
+    optimizer_name = str(params.get("optimizer", "Adam")).lower()
+    if optimizer_name == "adam":
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+    elif optimizer_name == "rmsprop":
+        optimizer = tf.keras.optimizers.RMSprop(learning_rate=1e-3)
+    else:
+        raise ValueError(
+            f"Unsupported optimizer: {optimizer_name}. Use RMSprop or Adam."
+        )
+
+    model.compile(
+        optimizer=optimizer,
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
+
+
+def run_keras_grid(
+    build_fn,
+    param_grid: dict,
+    X_train,
+    y_train,
+    model_name: str,
+    *,
+    model_kwargs: dict[str, Any] | None = None,
+    validation_size: float = 0.2,
+    seed: int = SEED,
+    output_dir: str | Path = "outputs/metrics",
+    **fit_kwargs,
+) -> pd.DataFrame:
+    """Tune a Keras sequence model using a validation split from training data.
+
+    Candidates are ranked by validation Cohen's kappa, with validation loss
+    as the tie-breaker. The test set must never be passed to this function.
+    """
+    from sklearn.metrics import (
+        accuracy_score,
+        cohen_kappa_score,
+        f1_score,
+        precision_score,
+        recall_score,
+    )
+    from sklearn.model_selection import train_test_split
+    import tensorflow as tf
+
+    if not 0 < validation_size < 1:
+        raise ValueError("validation_size must be between 0 and 1.")
+    if not param_grid or any(len(values) == 0 for values in param_grid.values()):
+        raise ValueError("param_grid must contain non-empty candidate values.")
+
+    X_train = np.asarray(X_train)
+    y_train = np.asarray(y_train).reshape(-1)
+    if len(X_train) != len(y_train):
+        raise ValueError("X_train and y_train must have the same number of rows.")
+
+    X_fit, X_val, y_fit, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=validation_size,
+        random_state=seed,
+        stratify=y_train,
+    )
+
+    grid_names = list(param_grid)
+    configurations = [
+        dict(zip(grid_names, values))
+        for values in product(*(param_grid[name] for name in grid_names))
+    ]
+
+    epochs = int(fit_kwargs.pop("epochs", 30))
+    verbose = fit_kwargs.pop("verbose", 0)
+    logger = get_logger(model_name)
+    logger.info(
+        "Keras grid started | model=%s | candidates=%d | train=%d | "
+        "validation=%d | seed=%d",
+        model_name, len(configurations), len(X_fit), len(X_val), seed,
+    )
+
+    results: list[dict[str, Any]] = []
+
+    for index, params in enumerate(configurations, start=1):
+        set_seed(seed)
+        model = _build_keras_candidate(
+            build_fn=build_fn,
+            params=params,
+            model_kwargs=model_kwargs or {},
+        )
+        early_stopping = tf.keras.callbacks.EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.0001,
+            restore_best_weights=True,
+        )
+
+        logger.info("Candidate %d/%d | params=%s", index, len(configurations), params)
+        with Timer() as timer:
+            history = model.fit(
+                X_fit,
+                y_fit,
+                validation_data=(X_val, y_val),
+                epochs=epochs,
+                batch_size=int(params.get("batch_size", 32)),
+                callbacks=[early_stopping],
+                verbose=verbose,
+                **fit_kwargs,
+            )
+
+        probabilities = model.predict(X_val, verbose=0).reshape(-1)
+        predictions = (probabilities >= 0.5).astype(int)
+        result = {
+            **params,
+            "val_loss": float(min(history.history["val_loss"])),
+            "val_accuracy": float(accuracy_score(y_val, predictions)),
+            "val_precision": float(
+                precision_score(y_val, predictions, zero_division=0)
+            ),
+            "val_recall": float(recall_score(y_val, predictions, zero_division=0)),
+            "val_f1": float(f1_score(y_val, predictions, zero_division=0)),
+            "val_kappa": float(cohen_kappa_score(y_val, predictions)),
+            "training_seconds": float(timer.elapsed),
+            "trainable_parameters": int(model.count_params()),
+            "epochs_trained": len(history.history["loss"]),
+        }
+        results.append(result)
+
+        logger.info(
+            "Candidate %d finished | kappa=%.4f | loss=%.4f | seconds=%.2f "
+            "| parameters=%d",
+            index,
+            result["val_kappa"],
+            result["val_loss"],
+            timer.elapsed,
+            result["trainable_parameters"],
+        )
+        del model
+        tf.keras.backend.clear_session()
+
+    results_df = pd.DataFrame(results).sort_values(
+        ["val_kappa", "val_loss"],
+        ascending=[False, True],
+    ).reset_index(drop=True)
+
+    csv_path = save_grid_results(results_df, model_name, output_dir)
+    logger.info(
+        "Keras grid completed | best_params=%s | best_val_kappa=%.4f",
+        {key: results_df.iloc[0][key] for key in grid_names},
+        results_df.iloc[0]["val_kappa"],
+    )
+    logger.info("Grid results saved to %s", csv_path)
+    return results_df
+
+
+def fit_best_keras(
+    build_fn,
+    best_params: dict,
+    X_train,
+    y_train,
+    model_name: str,
+    *,
+    model_kwargs: dict[str, Any] | None = None,
+    validation_split: float = 0.2,
+    seed: int = SEED,
+    **fit_kwargs,
+):
+    """Fit the selected Keras configuration using training data only.
+
+    A stratified validation subset is held out from X_train for early stopping.
+    Returns the fitted model and its Keras History object.
+    """
+    import tensorflow as tf
+    from sklearn.model_selection import train_test_split
+
+    if not 0 < validation_split < 1:
+        raise ValueError("validation_split must be between 0 and 1.")
+
+    X_train = np.asarray(X_train)
+    y_train = np.asarray(y_train).reshape(-1)
+    if len(X_train) != len(y_train):
+        raise ValueError("X_train and y_train must have the same number of rows.")
+
+    X_fit, X_val, y_fit, y_val = train_test_split(
+        X_train,
+        y_train,
+        test_size=validation_split,
+        random_state=seed,
+        stratify=y_train,
+    )
+
+    set_seed(seed)
+    model = _build_keras_candidate(
+        build_fn=build_fn,
+        params=best_params,
+        model_kwargs=model_kwargs or {},
+    )
+
+    epochs = int(fit_kwargs.pop("epochs", 30))
+    verbose = fit_kwargs.pop("verbose", 1)
+    callbacks = list(fit_kwargs.pop("callbacks", []))
+    callbacks.append(
+        tf.keras.callbacks.EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.0001,
+            restore_best_weights=True,
+        )
+    )
+
+    logger = get_logger(model_name)
+    logger.info("Refitting best Keras model | params=%s", best_params)
+
+    with Timer() as timer:
+        history = model.fit(
+            X_fit,
+            y_fit,
+            validation_data=(X_val, y_val),
+            epochs=epochs,
+            batch_size=int(best_params.get("batch_size", 32)),
+            callbacks=callbacks,
+            verbose=verbose,
+            **fit_kwargs,
+        )
+
+    logger.info(
+        "Best Keras model fitted | epochs=%d | seconds=%.2f | parameters=%d",
+        len(history.history["loss"]),
+        timer.elapsed,
+        model.count_params(),
+    )
+    return model, history
