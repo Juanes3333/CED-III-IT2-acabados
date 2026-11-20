@@ -68,3 +68,77 @@ Claude Code was used as a technical support tool to clarify some aspects of text
 
 #### Discarded
 The use of NLTK's stopword corpus was discarded because it requires an additional download and includes negations that would need to be manually preserved. An alternative stopword handling approach was preferred.
+
+### [2026-11-19] IT2-16: Dense neural network on TF-IDF features
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "Can you help me review the configuration of a dense neural network using TF-IDF and MLPClassifier? I want to make sure the pipeline handles vectorization and training correctly, supports parameter configuration by name and avoids data leakage."
+
+#### AI Contribution
+Claude Code was used as a technical support tool to clarify some aspects of combining TF-IDF vectorization with a dense neural network. It provided suggestions regarding the use of `Pipeline`, parameter configuration and reproducibility. It also helped review the training process and some validation checks to ensure that the model could be configured and fitted correctly.
+
+#### Review & Critical Refinements
+- **Accepted:** The use of `TfidfVectorizer` and `MLPClassifier` within a single `Pipeline`, ensuring that the vocabulary is learned only from training data during fitting and cross-validation, preventing data leakage.
+- **Adjusted:** `early_stopping=True` was retained because scikit-learn creates its validation subset from the training data. The test set is not used to determine when training stops.
+- **Adjusted:** `random_state=SEED` was configured in the MLP to make the training results reproducible.
+- **Adjusted:** Scikit-learn imports are placed inside the function so that `src.models` can be imported without requiring scikit-learn or TensorFlow immediately.
+- **Validated:** The pipeline was tested with a toy sample, its parameters were checked by name, and a train-only fit was performed using the real training split. The test file was not accessed.
+- **Not validated:** Testing was performed with scikit-learn 1.9.1 on Python 3.14 instead of the versions specified in `environment.yml` (1.4.2). This verification remains pending for IT2-17 and IT2-18.
+
+#### Discarded
+Nothing significant was discarded. Parameter tuning was left for IT2-17, keeping the current values as initial defaults for the model.
+
+### [2026-11-19] IT2-17: Tune the dense network with GridSearchCV on kappa
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "Can you explain how to configure GridSearchCV for the dense model? I need to use Cohen's kappa, keep the five folds stratified and make sure the search only uses the training data. Also, what is the best way to store the results and selected parameters?"
+
+#### AI Contribution
+Claude Code was used as a technical support tool to clarify some aspects of hyperparameter tuning and cross-validation. It provided suggestions regarding the configuration of `GridSearchCV`, the use of Cohen's kappa as the scoring metric and the organization of the experiment results. It also helped review the reproducibility settings and the process for saving the best parameters and cross-validation results.
+
+#### Review & Critical Refinements
+- **Adjusted:** The scoring configuration uses `make_scorer(cohen_kappa_score)` instead of passing `cohen_kappa_score` directly, since scikit-learn requires a scorer compatible with the estimator evaluation interface.
+- **Adjusted:** `StratifiedKFold(shuffle=True, random_state=SEED)` was used to maintain class proportions across the five folds and ensure reproducibility.
+- **Adjusted:** `return_train_score=True` was included to compare training and validation performance and identify possible overfitting.
+- **Adjusted:** The saved JSON includes the best parameters along with relevant experiment information, such as the score, number of folds and seed. The parameter configuration was also checked for compatibility with `build_dense_pipeline`.
+- **Accepted:** The parameter grid defined in `MASTER_PROMPT.md` §6, containing 48 candidate configurations.
+- **Validated:** The experiment was tested with a toy sample and the real training split of 800 rows, without accessing the test set. A second single-threaded execution was also used to check the consistency of the results.
+- **Interpretation:** 22 of the 48 configurations are within one standard deviation of the best result. Therefore, the selected configuration is not considered a clearly superior solution.
+- **Not validated:** Final performance metrics on the test set, which are scheduled for IT2-18.
+
+#### Discarded
+Adding TF-IDF parameters such as `max_features` and `ngram_range` to the search grid was postponed because it would significantly increase the number of model evaluations and was outside the parameter grid defined in `MASTER_PROMPT.md`. This possibility can be reconsidered in future experiments if necessary.
+
+### [2026-11-19] IT2-18: Dense network section in the model notebook
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "What should I consider when documenting the Dense neural network results in the shared notebook? I need to include the evaluation metrics, confusion matrix, influential terms and the main conclusions, while keeping the other model sections available for the team."
+
+#### AI Contribution
+Claude Code was used as a technical support tool to review the notebook structure and clarify some aspects of presenting the Dense model results. It provided suggestions regarding the organization of the analysis, the evaluation metrics, the visualization of influential terms and the interpretation of the model's performance. It also helped review the reproducibility of the results and the organization of the shared notebook.
+
+#### Review & Critical Refinements
+- **Accepted:** The professor's step order, using question-style titles and separate cells for each stage, with the same evaluation metrics for training and test data.
+- **Adjusted:** The tuning process reuses `run_dense_grid` with the previously established scorer, stratified folds and training-only data. The test set is evaluated only after the model configuration is fixed.
+- **Adjusted:** The influential terms visualization was changed to a diverging log-odds chart because the initial probability-based approach produced saturated values that were not informative. The notebook also clarifies that this is a one-word probe, not a linear coefficient interpretation.
+- **Adjusted:** The conclusions were revised to avoid claiming that regularization improved performance, since the differences between `alpha` values were within the observed variation.
+- **Adjusted:** The explanation of empty cleaned texts was clarified. Since none were found in the dataset splits, `fillna` is described only as a safety measure.
+- **Adjusted:** The seed configuration uses `random` and NumPy without importing TensorFlow, since the Dense section does not require it. The Keras sections must configure their own seed.
+- **Accepted with limitations:** A rough normal-approximation interval for test accuracy (approximately ±0.06) was included as a reference for the small test set, without replacing the bootstrap intervals planned for IT2-24.
+- **Validated:** The notebook was executed without errors and produced consistent results on a second run. The `dense_metrics.csv` file contains training and test results, test accuracy reached 0.720 compared with 0.515 for the best baseline, and the saved pipeline was reloaded with matching predictions.
+- **Not validated:** The exact Conda environment specified in `environment.yml` and TensorFlow were not tested. Validation used a temporary Python 3.11 environment with the versions from `requirements.txt`.
+
+#### Discarded
+The MLP loss-curve figure and grid heatmap were discarded because they did not add relevant information for the evaluation criteria. Using the first-layer weights as direct TF-IDF word importance was also discarded because the hidden layer combines information from multiple words, making those weights unsuitable for direct per-word interpretation.
