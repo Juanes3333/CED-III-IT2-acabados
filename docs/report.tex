@@ -1,0 +1,28 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.72in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{hyperref}
+\title{Binary Sentiment Classification on GoEmotions: Comparing Neural Architectures}
+\author{Juan Esteban Restrepo \and Daniel Varela \and Samuel Granda\\Universidad Icesi}
+\date{2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+We study binary sentiment classification of Reddit comments drawn from GoEmotions. The project uses a balanced sample of 1,000 comments and compares a majority-class baseline with dense and recurrent neural classifiers. This report describes the dataset, preprocessing, and model design; subsequent sections document experimental results, comparisons, and theoretical implications.
+\end{abstract}
+\input{sections/01_introduction}
+\input{sections/02_data_preprocessing}
+\input{sections/03_models}
+\input{sections/04_results}
+\input{sections/05_comparison}
+\input{sections/06_turing_relation}
+\input{sections/07_conclusion_future_work}
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}

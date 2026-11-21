@@ -1,0 +1,4 @@
+\section{Introduction}
+Sentiment classification identifies the polarity expressed in text. Short Reddit comments are challenging because sentiment may depend on context, informal wording, and negation. GoEmotions provides Reddit comments annotated with fine-grained emotion labels \cite{demszky2020goemotions}. We convert these labels into a binary positive-versus-negative task to compare neural architectures under the same experimental conditions.
+
+Our objectives are to construct a reproducible and balanced dataset, train a TF--IDF-based dense classifier and two sequence models (vanilla RNN and LSTM), and evaluate their generalization on a held-out test set. The broader project also considers baseline predictions, a Transformer extension, and the relationship between computational models and Turing-machine concepts. Implementation details are maintained in \texttt{src/preprocessing.py}, \texttt{src/models.py}, and \texttt{src/train.py}.
