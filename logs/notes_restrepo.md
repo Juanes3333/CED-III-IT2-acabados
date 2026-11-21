@@ -283,3 +283,57 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 - **For IT2-26 (same owner):** weights are not committed. Use a validation split taken from the train split to choose the number of epochs, and call `tf.keras.utils.set_random_seed(1234)` before building the model. Fine-tuning 67M parameters on CPU is slow; the hardware and time must be recorded in the notes (Colab/Kaggle GPU is allowed).
 - On Windows the Hugging Face cache prints a symlink warning (Developer Mode is off). It is harmless; it only uses more disk space.
 - Not run: the exact conda environment of `environment.yml` (conda is not installed here).
+
+## IT2-26: Transformer extension notebook
+
+- **Date:** 2026-11-21
+- **Owner:** Restrepo
+- **Branch:** `feat/transformer`
+- **Commit Reference:** Refs: IT2-26
+
+### 1. Technical Decision / Hypothesis
+- Fine-tune `distilbert-base-uncased` (TensorFlow, `build_transformer` and `tokenize_for_transformer` from IT2-25) on the **same** train split as the Dense, RNN and LSTM models and evaluate it once on the same test split.
+- The model reads the raw `text` column (not `clean_text`): the tokenizer and attention need negations and function words.
+- No grid search. Fixed standard configuration from slide 23: `lr=2e-5`, batch size 16, at most 4 epochs, `max_length=64`. The number of epochs is chosen with the validation loss (`EarlyStopping(monitor="val_loss", patience=1, restore_best_weights=True)`). Reason: 67M parameters on 640 rows; a grid on CPU would take hours and would mostly fit noise.
+- Hypothesis: a pretrained Transformer should beat the models trained from scratch on 800 comments and overfit less.
+
+### 2. Context & Rationale
+- Validation: stratified, seeded 20% hold-out taken **from the train split only** (640 fit / 160 validation). Train metrics are computed on all 800 train rows (same as RNN and LSTM); the test split is used once.
+- `max_length=64`: token lengths of the train comments are mean 19.0, 95th percentile 34, maximum 46, so no comment is truncated.
+- The 200-comment test set is small, so the notebook reports a paired bootstrap CI (`bootstrap_ci`, the same helper as the model comparison).
+- Attention: three test comments chosen by a fixed rule (first correct positive, first correct negative, first misclassified), last layer averaged over 12 heads, sliced to real tokens with `attention_mask`; the notebook asserts that each row sums to about 1 (softmax).
+
+### 3. Implementation Details
+- Files: `notebooks/04_transformer_extension.ipynb` (41 cells), `outputs/metrics/transformer_metrics.csv`, `outputs/figures/transformer_learning_curves.png`, `transformer_confusion_matrix.png`, `transformer_attention.png`, this notes file and `prompts/log_restrepo.md`.
+- No file in `src/` was changed. `output_attentions=True` is passed when the model is called in the notebook.
+- Not committed on purpose: `logs/training_logs_transformer.txt` (local training log written by `get_logger`, like the dense one) and no weights (nothing was saved in `outputs/saved_models/`).
+- Variables kept for IT2-27 (Varela): `transformer_pred_test`, `transformer_prob_test` (softmax probability of the positive class), `y_test`, and the `test` DataFrame (raw `text`); `transformer_pred_train` and `y_train` for the train rows. `transformer_metrics.csv` has the same columns as the other metrics files (`model` = `transformer`).
+
+### 4. Verification & Empirical Evidence
+- Environment (outside the repository): Python 3.11.18 virtual environment with `tensorflow==2.15.1`, `keras==2.15.0`, `transformers==4.38.2`, `numpy==1.26.4`, `pandas==2.2.2`, `scikit-learn==1.4.2`, `matplotlib==3.8.4`, `seaborn==0.13.2`, `nbconvert==7.16.4`. Not the conda environment of `environment.yml` (conda is not installed here).
+- **Hardware:** Intel Core i5-12450H (12 logical CPUs), 7.7 GB RAM, Windows 10 Home, **no GPU** (TensorFlow sees none). Everything ran on CPU.
+- **Time:** fine-tuning (640 rows, batch 16, 4 epochs of 40 steps) took 339.5 to 408.6 seconds (5.7 to 6.8 minutes) in five full runs; the last run took 345.0 s. Predicting the 800 train rows took about 32 s and the 200 test rows about 9 s. Epoch time was 82 to 140 s (about 2 s per step).
+- **Epochs:** 4 run, best epoch 3 (validation loss 0.373, validation accuracy 0.8625); epoch 4 had validation loss 0.437 (start of overfitting). `restore_best_weights=True` restored epoch 3 because early stopping fired after epoch 4; the reported epoch matches the minimum `val_loss` of the history.
+- **Metrics** (`transformer_metrics.csv`):
+  - train: accuracy 0.965, precision 0.972, recall 0.958, F1 0.965, kappa 0.930
+  - test: accuracy 0.895, precision 0.869, recall 0.930, F1 0.899, macro F1 0.895, kappa 0.790
+  - test 95% bootstrap CI: accuracy [0.850, 0.935], kappa [0.698, 0.870]
+  - test confusion matrix: tn 86, fp 14, fn 7, tp 93 (107 positive predictions)
+- Context from `outputs/metrics/model_comparison.csv` (test): LSTM accuracy 0.740 / kappa 0.480 (CI [0.675, 0.795]), Dense 0.720 / 0.440, RNN 0.675 / 0.350, best dummy 0.515 / 0.03. The Transformer CI does not overlap the LSTM CI. Accuracy gap train - test: Transformer 0.070, LSTM 0.161, RNN 0.219, Dense 0.239. Caveat: the Transformer reads raw text and brings pretraining on an external corpus; this experiment cannot separate the effect of the architecture from the effect of pretraining.
+- **Reproducibility:** `python -m nbconvert --to notebook --execute --inplace notebooks/04_transformer_extension.ipynb` was run five times from the same seed; `transformer_metrics.csv` was byte-identical in all five full runs (compared with `diff`) and the epoch losses were the same. An earlier attempt only failed on one check cell (see below) before any training.
+- The executed notebook has 0 error outputs and no personal paths (searched for the user name and `AppData`). The library warnings that printed local paths were silenced in the setup cell.
+- A bug found and fixed while running: Keras 2.15 loss objects have no `from_logits` attribute, so the check cell uses `transformer.loss.get_config()["from_logits"]` (value `True`).
+- Acceptance criteria checklist:
+  - [x] Metrics saved (`outputs/metrics/transformer_metrics.csv`, train and test rows)
+  - [x] Hardware and time recorded (above)
+  - [x] Same train and test split, same five metrics, learning curves, attention for 3 comments
+  - [x] Markdown discussion: attention versus recurrence (`softmax(QK^T/sqrt(d))V`, parallelism, long-range dependencies) and the attention matrix as explicit memory (NTM, slides 21-22)
+  - [x] No weights committed
+
+### 5. Observations & Teammate Hand-off
+- **Varela (IT2-27):** append only a final `## Final comparison` section to this notebook. The Transformer test predictions and probabilities are in the variables listed above. For the 10-error analysis, note that the Transformer made 21 test errors (14 false positives, 7 false negatives); the misclassified comment shown in the attention section (`test` row 1) is a sarcastic or ambiguous positive ("It's actually not even close").
+- The last-layer attention of DistilBERT sends most weight to `[SEP]` and punctuation; this is a known behaviour and the notebook says that attention is an illustration, not a faithful explanation.
+- Limits to state in the report: one seed, 200 test comments, a 160-comment validation set used for the epoch, no hyperparameter search. Do not claim that Transformers are always better; the evidence supports that this fine-tuned DistilBERT is better than the other models on this split.
+- Not run: the exact conda environment of `environment.yml`, and a GPU run. The Hugging Face model download (a few hundred MB) is cached outside the repository.
+- Merge M11 comes after review of IT2-25 and IT2-26 (PR from `feat/transformer`, reviewer Varela).
+- Noticed, not touched: commit `aa03ef0` on this branch has the same subject as IT2-25, has no `Refs:` footer and only changes `prompts/log_restrepo.md`. The team should decide whether it is acceptable before opening the PR.

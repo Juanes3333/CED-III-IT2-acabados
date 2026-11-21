@@ -165,3 +165,31 @@ Claude Code was used as a technical support tool to clarify some aspects of inte
 
 #### Discarded
 Returning both the tokenizer and the model from `build_transformer` was discarded in favor of keeping the functions separate. The tokenizer is handled by `tokenize_for_transformer`, maintaining a simpler interface consistent with `MASTER_PROMPT.md`.
+
+### [2026-11-21] IT2-26: Transformer extension notebook
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "What should I consider when extending the model notebook with the Transformer section? I need to follow the professor's structure, evaluate the fine-tuned model properly and make sure the discussion is supported by the actual results."
+
+#### AI Contribution
+Claude Code was used as a support tool to clarify some aspects of the Transformer experiment and notebook organization. It provided suggestions regarding tokenization, validation, model evaluation and result visualization. It also helped review the interpretation of attention matrices, the comparison with previous models and some technical issues encountered during notebook execution.
+
+#### Review & Critical Refinements
+- **Accepted:** The main configuration from slide 23, including `lr=2e-5`, `num_labels=2`, `from_logits=True`, `truncation=True` and `padding="max_length"`, together with a fixed seed.
+- **Corrected:** The number of training epochs is selected using a stratified validation split taken exclusively from the training data. `restore_best_weights=True` is used, and the test set is evaluated only once after training.
+- **Adjusted:** The `max_length` value was determined from the training token lengths, with a mean of 19 and a maximum of 46, instead of blindly copying a fixed value from the slides. This ensures that no comment is truncated.
+- **Adjusted:** A grid search was not considered appropriate because the model has approximately 67 million parameters and the available training dataset contains only 640 rows. The standard configuration was retained as the selected configuration.
+- **Adjusted:** The confidence interval for the 200-comment test set uses the project's `bootstrap_ci` function to maintain consistency with the evaluation of the other models.
+- **Adjusted:** The attention analysis was revised after examining the actual figures. The matrices showed considerable attention to `[SEP]` and punctuation rather than emotional words, so the discussion avoids treating attention as a faithful explanation of the model's predictions.
+- **Adjusted:** The parameter-to-comment ratio was corrected to approximately 84,000. Training time was also reported as a range of 5.7 to 6.8 minutes based on repeated executions.
+- **Adjusted:** Library warnings containing local file paths were silenced, and the notebook was checked for personal paths in its outputs.
+- **Rejected:** The claim that the Transformer performs better solely because of its architecture. Pretraining on external data is another relevant factor that this experiment cannot isolate.
+- **Validated:** The notebook executed from beginning to end without errors. Five runs using the same seed produced consistent metrics. Test accuracy reached 0.895 and Cohen's kappa reached 0.790. The bootstrap confidence interval did not overlap with the LSTM interval.
+- **Not validated:** Execution in the exact Conda environment specified in `environment.yml`, GPU execution and results using alternative random seeds.
+
+#### Discarded
+A multi-seed experiment and learning-rate grid were discarded due to computational cost and time constraints. Attention rollout and per-head visualizations were also excluded because they did not provide additional evidence relevant to the evaluation criteria. Saving the fine-tuned model weights was discarded because of their large size and the requirement to avoid committing them to the repository.
