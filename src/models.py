@@ -130,4 +130,54 @@ def build_rnn(
 
 
 
+def build_lstm(
+    max_words: int = 2302,
+    max_len: int = 13,
+    embedding_dim: int = 64,
+    lstm_units: int = 64,
+    dense_units: int = 32,
+    dropout_rate: float = 0.3,
+    learning_rate: float = 1e-3,
+):
+    """Build a compiled LSTM classifier for binary sentiment.
+
+    The input consists of integer token sequences from the project's
+    training-only-fitted text vectorizer. The LSTM replaces the SimpleRNN
+    cell while keeping the rest of the RNN architecture consistent.
+    """
+    from tensorflow import keras
+
+    if max_words <= 0 or max_len <= 0:
+        raise ValueError("max_words and max_len must be positive")
+    if embedding_dim <= 0 or lstm_units <= 0 or dense_units <= 0:
+        raise ValueError("embedding_dim, lstm_units and dense_units must be positive")
+    if not 0.0 <= dropout_rate < 1.0:
+        raise ValueError("dropout_rate must be in the interval [0, 1)")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be positive")
+
+    model = keras.Sequential(
+        [
+            keras.layers.Input(shape=(max_len,), dtype="int32", name="tokens"),
+            keras.layers.Embedding(
+                input_dim=max_words,
+                output_dim=embedding_dim,
+                name="embedding",
+            ),
+            keras.layers.LSTM(lstm_units, name="lstm"),
+            keras.layers.Dense(dense_units, activation="relu", name="dense_hidden"),
+            keras.layers.Dropout(dropout_rate, name="dropout"),
+            keras.layers.Dense(1, activation="sigmoid", name="sentiment_output"),
+        ],
+        name="lstm_classifier",
+    )
+
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
+
+
 # --- Transformer ---
