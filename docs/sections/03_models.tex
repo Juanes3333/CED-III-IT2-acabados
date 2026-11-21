@@ -1,0 +1,10 @@
+\section{Models and Training Procedure}
+\textbf{Baseline.} The project includes dummy classifiers as reference points; these help determine whether neural models outperform simple class-prediction strategies.
+
+\textbf{Dense neural network.} The scikit-learn pipeline combines TF--IDF features (unigrams and bigrams, minimum document frequency 2, sublinear term frequency) with an \texttt{MLPClassifier}. Its default hidden layer has 64 ReLU units, L2 regularization, and early stopping. A five-fold stratified grid search selects configurations by Cohen's kappa, fitting the complete pipeline within each fold to avoid leakage \cite{pedregosa2011scikit}.
+
+\textbf{Vanilla RNN.} Cleaned comments are encoded as fixed-length token sequences. A Keras model uses a learned embedding layer, a \texttt{SimpleRNN} layer, a ReLU dense layer, dropout, and a single sigmoid output. Default builder settings include 64-dimensional embeddings, 64 recurrent units, 32 dense units, and dropout 0.3.
+
+\textbf{LSTM.} The LSTM classifier uses the same overall sequence-classification structure, replacing \texttt{SimpleRNN} with an LSTM layer. Its gated memory mechanism is designed to handle dependencies across sequence positions more effectively than a simple recurrent cell \cite{hochreiter1997long}.
+
+Both recurrent builders use binary cross-entropy and an Adam optimizer by default. The shared training utilities support candidate searches over recurrent units, embedding size, dropout, batch size, and optimizer. They rank candidates by validation Cohen's kappa, using validation loss to break ties; early stopping monitors validation loss. The best configuration is then fitted using training data with a stratified validation subset. Random seeds are set to 1234 for reproducibility. The held-out test partition is reserved for final evaluation rather than hyperparameter selection.
