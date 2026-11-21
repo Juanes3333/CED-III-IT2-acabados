@@ -249,3 +249,37 @@ Entries follow `logs/NOTES_TEMPLATE.md` (added in IT2-04).
 - 22 of 48 tuned candidates are within one standard deviation of the best, and the test accuracy has a rough interval of about +/- 0.06. The final comparison must not claim a winner when intervals overlap.
 - The one-word probe contains some terms that are not obviously emotional (`trust`, `show`, `may`, `mind`, `wish`). They probably come from the small sample; the final error analysis can look at them.
 - Merge M8 comes after review of the three commits IT2-16, IT2-17 and IT2-18 (PR from `feat/dense-nn`).
+
+## IT2-25: DistilBERT sequence classifier builder
+
+- **Date:** 2026-11-21
+- **Owner:** Restrepo
+- **Branch:** `feat/transformer`
+- **Commit Reference:** Refs: IT2-25
+
+### 1. Technical Decision / Hypothesis
+- Two functions were added to the `# --- Transformer ---` section of `src/models.py`: `tokenize_for_transformer(texts, model_name, max_length=64, tokenizer=None)` and `build_transformer(model_name="distilbert-base-uncased", num_labels=2, lr=2e-5)`.
+- **Framework choice: TensorFlow / Keras** (`TFAutoModelForSequenceClassification`), not the PyTorch fallback. Reason: the rest of the project (Dense, RNN, LSTM) uses TensorFlow, `requirements.txt` already pins `tensorflow==2.15.1` and `transformers==4.38.2`, and slide 23 (p.23-26) uses the TF classes. The fallback was not needed because the TF classes load correctly with the pinned versions.
+- Tokenization follows slide 23: `truncation=True`, `padding="max_length"`, fixed `max_length` (default 64, enough because comments have at most about 30 tokens). It returns a dict of NumPy arrays (`input_ids`, `attention_mask`).
+- The model is compiled with `Adam(learning_rate=2e-5)` and `SparseCategoricalCrossentropy(from_logits=True)`, because the model returns logits and the two labels are the integers 0 and 1.
+
+### 2. Context & Rationale
+- Imports of TensorFlow and `transformers` are inside the functions, so `import src.models` still works without them (same pattern as the other sections).
+- The builder returns only the compiled model. The tokenizer is created in `tokenize_for_transformer` (or passed in) so the notebook (IT2-26) can reuse one tokenizer for train, validation and test.
+- Input validation (`max_length`, `num_labels`, `lr`) raises `ValueError` with a clear message.
+
+### 3. Implementation Details
+- Only `src/models.py` (section `# --- Transformer ---`), this notes file and `prompts/log_restrepo.md` were changed. No training, no notebook and no metrics belong to this commit (they are IT2-26).
+
+### 4. Verification & Empirical Evidence
+- Environment: temporary Python 3.11.18 virtual environment (outside the repository) with `tensorflow==2.15.1`, `keras==2.15.0`, `transformers==4.38.2`, `numpy==1.26.4`. The machine default is Python 3.14, which has no TensorFlow.
+- Smoke test on 4 comments with `max_length=32`: input arrays have shape (4, 32) and dtype int32; the forward pass returns logits of shape (4, 2); the model has 66,955,010 parameters; the learning rate is 2e-05 and the loss has `from_logits=True`; `evaluate` runs on the 4 samples (loss 0.690, accuracy 0.5, as expected for a classification head that is not trained yet).
+- The first call downloaded `distilbert-base-uncased` from the Hugging Face Hub (about 1 minute); the second run took 2 seconds from cache. Hugging Face prints a warning that the classification head is newly initialized: this is expected before fine-tuning.
+- Acceptance criteria checklist:
+  - [x] Loads the pretrained model and runs a forward pass on 4 samples
+  - [x] Framework choice documented (TensorFlow)
+
+### 5. Observations & Teammate Hand-off
+- **For IT2-26 (same owner):** weights are not committed. Use a validation split taken from the train split to choose the number of epochs, and call `tf.keras.utils.set_random_seed(1234)` before building the model. Fine-tuning 67M parameters on CPU is slow; the hardware and time must be recorded in the notes (Colab/Kaggle GPU is allowed).
+- On Windows the Hugging Face cache prints a symlink warning (Developer Mode is off). It is harmless; it only uses more disk space.
+- Not run: the exact conda environment of `environment.yml` (conda is not installed here).

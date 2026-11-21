@@ -181,3 +181,65 @@ def build_lstm(
 
 
 # --- Transformer ---
+
+DEFAULT_TRANSFORMER = "distilbert-base-uncased"
+
+
+def tokenize_for_transformer(
+    texts,
+    model_name: str = DEFAULT_TRANSFORMER,
+    max_length: int = 64,
+    tokenizer=None,
+):
+    """Tokenize raw comments for a Transformer (slide 23, p.23-26).
+
+    Uses truncation=True and padding="max_length", so every comment has the
+    same length. Returns a dict of NumPy arrays (input_ids, attention_mask)
+    that can be passed to a TensorFlow Hugging Face model.
+    """
+    if max_length <= 0:
+        raise ValueError("max_length must be positive")
+    if tokenizer is None:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    encoded = tokenizer(
+        [str(text) for text in texts],
+        truncation=True,
+        padding="max_length",
+        max_length=max_length,
+        return_tensors="np",
+    )
+    return dict(encoded)
+
+
+def build_transformer(
+    model_name: str = DEFAULT_TRANSFORMER,
+    num_labels: int = 2,
+    lr: float = 2e-5,
+):
+    """Build a compiled DistilBERT (or BERT) sequence classifier.
+
+    Framework: TensorFlow / Keras, the same one used for the Dense, RNN and
+    LSTM models (versions pinned in requirements.txt). The model outputs
+    logits, so the loss uses from_logits=True (slide 23). With num_labels=2
+    the labels are the integers 0 and 1 (sparse loss).
+    """
+    if num_labels < 2:
+        raise ValueError("num_labels must be at least 2")
+    if lr <= 0:
+        raise ValueError("lr must be positive")
+
+    import tensorflow as tf
+    from transformers import TFAutoModelForSequenceClassification
+
+    model = TFAutoModelForSequenceClassification.from_pretrained(
+        model_name, num_labels=num_labels
+    )
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=["accuracy"],
+    )
+    return model

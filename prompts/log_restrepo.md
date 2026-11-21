@@ -142,3 +142,26 @@ Claude Code was used as a technical support tool to review the notebook structur
 
 #### Discarded
 The MLP loss-curve figure and grid heatmap were discarded because they did not add relevant information for the evaluation criteria. Using the first-layer weights as direct TF-IDF word importance was also discarded because the hidden layer combines information from multiple words, making those weights unsuitable for direct per-word interpretation.
+
+### [2026-11-21] IT2-25: DistilBERT sequence classifier builder
+
+- **Member:** Restrepo
+- **Tool / Model:** Claude Code
+- **Role of AI:** Technical Assistance & Code Review
+
+#### Prompt
+> "Do the work of commit 25 (build_transformer and a tokenization helper for DistilBERT) following the slide 23 recipe, without pushing."
+
+#### AI Contribution
+Claude Code checked the repository state and the owner of the commit, wrote the tokenization helper and the model builder in the Transformer section of `src/models.py`, and built a temporary Python 3.11 environment with the pinned library versions to run a smoke test.
+
+#### Review & Critical Refinements
+- **Accepted:** The slide 23 recipe: `truncation=True`, `padding="max_length"`, `num_labels=2`, `lr=2e-5` and a loss with `from_logits=True`.
+- **Adjusted:** The imports of TensorFlow and `transformers` are placed inside the functions, so `src.models` can be imported without them.
+- **Adjusted:** `max_length` is a parameter (default 64, from the EDA) instead of the fixed value of the slide, and the code uses a sparse loss because the labels are the integers 0 and 1.
+- **Adjusted:** The framework was chosen from evidence (the pinned TF 2.15.1 and transformers 4.38.2 work together) instead of switching to PyTorch without a reason.
+- **Validated:** A forward pass on 4 comments gave logits of shape (4, 2) and `evaluate` ran with the compiled loss.
+- **Not validated:** The conda environment of `environment.yml`; fine-tuning and metrics (they belong to IT2-26).
+
+#### Discarded
+Returning the tokenizer together with the model from `build_transformer` was discarded to keep the contract of `MASTER_PROMPT.md` simple; the tokenizer is created by `tokenize_for_transformer`.
