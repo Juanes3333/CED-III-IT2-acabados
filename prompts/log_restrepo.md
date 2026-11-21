@@ -150,18 +150,18 @@ The MLP loss-curve figure and grid heatmap were discarded because they did not a
 - **Role of AI:** Technical Assistance & Code Review
 
 #### Prompt
-> "Do the work of commit 25 (build_transformer and a tokenization helper for DistilBERT) following the slide 23 recipe, without pushing."
+> "What are the main considerations when building a DistilBERT sequence classifier with TensorFlow? I need to follow the professor's slide 23 configuration and make sure the tokenization and model functions work with our current project structure."
 
 #### AI Contribution
-Claude Code checked the repository state and the owner of the commit, wrote the tokenization helper and the model builder in the Transformer section of `src/models.py`, and built a temporary Python 3.11 environment with the pinned library versions to run a smoke test.
+Claude Code was used as a technical support tool to clarify some aspects of integrating DistilBERT into the project. It provided guidance on the tokenization process, model configuration and compatibility between TensorFlow and the Transformers library. It also helped review the implementation structure and identify some details to consider when testing the model.
 
 #### Review & Critical Refinements
-- **Accepted:** The slide 23 recipe: `truncation=True`, `padding="max_length"`, `num_labels=2`, `lr=2e-5` and a loss with `from_logits=True`.
-- **Adjusted:** The imports of TensorFlow and `transformers` are placed inside the functions, so `src.models` can be imported without them.
-- **Adjusted:** `max_length` is a parameter (default 64, from the EDA) instead of the fixed value of the slide, and the code uses a sparse loss because the labels are the integers 0 and 1.
-- **Adjusted:** The framework was chosen from evidence (the pinned TF 2.15.1 and transformers 4.38.2 work together) instead of switching to PyTorch without a reason.
-- **Validated:** A forward pass on 4 comments gave logits of shape (4, 2) and `evaluate` ran with the compiled loss.
-- **Not validated:** The conda environment of `environment.yml`; fine-tuning and metrics (they belong to IT2-26).
+- **Accepted:** The main configuration from slide 23, including `truncation=True`, `padding="max_length"`, `num_labels=2`, a learning rate of `2e-5` and a loss function configured with `from_logits=True`.
+- **Adjusted:** TensorFlow and `transformers` imports are placed inside the functions so that `src.models` can be imported without requiring these libraries immediately.
+- **Adjusted:** `max_length` was made configurable, with a default value of 64 based on the EDA, instead of using a fixed value from the slides. A sparse loss was also selected because the labels are represented as integers (0 and 1).
+- **Adjusted:** TensorFlow was retained as the framework after checking its compatibility with the pinned versions of the Transformers library, rather than switching to PyTorch without a specific reason.
+- **Validated:** A forward pass using four comments produced logits with shape `(4, 2)`, and the model's `evaluate` method ran successfully with the compiled loss.
+- **Not validated:** The exact Conda environment specified in `environment.yml`, as well as model fine-tuning and final performance metrics, which are scheduled for IT2-26.
 
 #### Discarded
-Returning the tokenizer together with the model from `build_transformer` was discarded to keep the contract of `MASTER_PROMPT.md` simple; the tokenizer is created by `tokenize_for_transformer`.
+Returning both the tokenizer and the model from `build_transformer` was discarded in favor of keeping the functions separate. The tokenizer is handled by `tokenize_for_transformer`, maintaining a simpler interface consistent with `MASTER_PROMPT.md`.
