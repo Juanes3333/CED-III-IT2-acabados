@@ -136,3 +136,102 @@ def save_metrics(df: pd.DataFrame, name: str) -> Path:
 
 
 # --- bootstrap_ci and compare_models are implemented in IT2-24 ---
+
+
+def bootstrap_ci(
+    y_true,
+    y_pred,
+    metric: str = "accuracy",
+    n_bootstrap: int = 2000,
+    confidence: float = 0.95,
+    seed: int = SEED,
+) -> tuple[float, float]:
+    """Return a percentile bootstrap confidence interval for a test metric.
+
+    Resample paired observations to preserve the relationship between the
+    ground-truth labels and predictions. Undefined kappa resamples are omitted.
+    """
+    actual = np.asarray(y_true).reshape(-1)
+    predicted = np.asarray(y_pred).reshape(-1)
+    if len(actual) == 0 or len(actual) != len(predicted):
+        raise ValueError("y_true and y_pred must have the same nonzero length")
+    if metric not in {"accuracy", "kappa"}:
+        raise ValueError("metric must be 'accuracy' or 'kappa'")
+    if not isinstance(n_bootstrap, (int, np.integer)) or n_bootstrap < 1:
+        raise ValueError("n_bootstrap must be a positive integer")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+
+    scorer = accuracy_score if metric == "accuracy" else cohen_kappa_score
+    rng = np.random.default_rng(seed)
+    scores = []
+    for _ in range(n_bootstrap):
+        indices = rng.integers(0, len(actual), size=len(actual))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            score = float(scorer(actual[indices], predicted[indices]))
+        if np.isfinite(score):
+            scores.append(score)
+    if not scores:
+        raise ValueError("No valid bootstrap samples for the selected metric")
+
+    alpha = (1 - confidence) / 2
+    low, high = np.quantile(scores, [alpha, 1 - alpha])
+    return float(low), float(high)
+
+
+def compare_models(
+    metrics: pd.DataFrame,
+    test_predictions: dict[str, tuple] | None = None,
+    n_bootstrap: int = 2000,
+    confidence: float = 0.95,
+    seed: int = SEED,
+) -> pd.DataFrame:
+    """Compare train/test metrics and optionally add test bootstrap intervals.
+
+    Args:
+        metrics: Combined metric rows with model and split columns.
+        test_predictions: Optional mapping from model name to
+            ``(y_test, predicted_test_labels)``. Without it, CI fields are NaN.
+        n_bootstrap: Number of paired bootstrap samples per metric.
+        confidence: Confidence level for percentile intervals.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        One row per model, ordered by test kappa and then test accuracy.
+        Gaps are train minus test; positive values indicate higher train scores.
+    """
+    required = {"model", "split", "accuracy", "precision", "recall", "f1", "f1_macro", "kappa"}
+    missing = required.difference(metrics.columns)
+    if missing:
+        raise ValueError(f"Missing metrics columns: {sorted(missing)}")
+    if metrics.duplicated(["model", "split"]).any():
+        raise ValueError("Each model must have at most one row per split")
+
+    rows = []
+    for name, group in metrics.groupby("model", sort=False):
+        by_split = group.set_index("split")
+        if not {"train", "test"}.issubset(by_split.index):
+            raise ValueError(f"Model {name!r} needs both train and test metrics")
+        train, test = by_split.loc["train"], by_split.loc["test"]
+        row = {"model": name}
+        for metric in ("accuracy", "precision", "recall", "f1", "f1_macro", "kappa"):
+            row[f"train_{metric}"] = float(train[metric])
+            row[f"test_{metric}"] = float(test[metric])
+            row[f"gap_{metric}"] = float(train[metric] - test[metric])
+
+        for metric in ("accuracy", "kappa"):
+            row[f"test_{metric}_ci_low"] = np.nan
+            row[f"test_{metric}_ci_high"] = np.nan
+        if test_predictions is not None and name in test_predictions:
+            actual, predicted = test_predictions[name]
+            for metric in ("accuracy", "kappa"):
+                low, high = bootstrap_ci(actual, predicted, metric, n_bootstrap, confidence, seed)
+                row[f"test_{metric}_ci_low"] = low
+                row[f"test_{metric}_ci_high"] = high
+        rows.append(row)
+
+    if not rows:
+        raise ValueError("No models were provided")
+    return pd.DataFrame(rows).sort_values(
+        ["test_kappa", "test_accuracy"], ascending=[False, False]
+    ).reset_index(drop=True)
